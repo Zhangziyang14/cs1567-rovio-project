@@ -37,7 +37,6 @@ RobotInterface *robot;
 #ifdef FILEDUMP
 std::ofstream rawDataFile;
 std::ofstream filterDataFile;
-std::ofstream correctedFilterDataFile;
 #endif
 	
 // initialize filters and prime coord filters w/ 3 readings
@@ -223,7 +222,6 @@ void QuitHandler( int s )
 	#ifdef FILEDUMP
 	rawDataFile.close();
 	filterDataFile.close();
-	correctedFilterDataFile.close();
 	#endif
 	
 	exit(-1);
@@ -274,9 +272,8 @@ int main(int argv, char **argc)
 	}
 	
 	#ifdef FILEDUMP
-	rawDataFile.open("rawData.txt");
-	filterDataFile.open("filterData.txt");
-	correctedFilterDataFile.open("correctedFilterData.txt");
+	rawDataFile.open("data/rawData.txt");
+	filterDataFile.open("data/filterData.txt");
 	#endif
 	
 	// set origin
@@ -334,9 +331,8 @@ int main(int argv, char **argc)
 			//printf("theta: %10.3f | x: %10.3f y: %10.3f | x: %10.3f y: %10.3f\n", thetaPos, xPos, yPos, xPosCorrected, yPosCorrected );
 			
 			#ifdef FILEDUMP
-			rawDataFile << robot->X() << " " << robot->Y() << "\n";
-			filterDataFile << xPos << " " << yPos << "\n";
-			correctedFilterDataFile << xPosCorrected << " " << yPosCorrected << "\n";
+			rawDataFile << robot->X() << " " << robot->Y() << " " << robot->Theta() << "\n";
+			filterDataFile << xPos << " " << yPos << " " << thetaPos << "\n";
 			#endif
 		}
 	} while(1);
@@ -347,7 +343,6 @@ int main(int argv, char **argc)
 	#ifdef FILEDUMP
 	rawDataFile.close();
 	filterDataFile.close();
-	correctedFilterDataFile.close();
 	#endif
 	
 	return 0;
