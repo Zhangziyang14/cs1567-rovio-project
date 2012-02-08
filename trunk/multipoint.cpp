@@ -9,7 +9,7 @@
 #include <signal.h>
 #include <fstream>
 
-//#define FILEDUMP
+#define FILEDUMP
 
 #define PI 3.14159265
 
