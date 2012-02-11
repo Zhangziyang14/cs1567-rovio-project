@@ -12,6 +12,7 @@
 #define FILEDUMP
 
 #define PI 3.14159265
+#define THETA_CORRECTION 1.5
 
 #define ANGLE_WHEEL_RIGHT 30
 #define ANGLE_WHEEL_LEFT 150
@@ -38,6 +39,27 @@ RobotInterface *robot;
 std::ofstream rawDataFile;
 std::ofstream filterDataFile;
 #endif
+
+
+float CorrectTheta( float theta )
+{
+	float temp, newTheta;
+	
+	// check if corrected value exceeds -2pi
+	if ( (theta + THETA_CORRECTION) > (2*PI) )
+	{
+		temp = theta + THETA_CORRECTION;
+		newTheta = -1 * ( temp - (2*PI) );
+	}
+	
+	// otherwise, just correct
+	else
+	{
+		newTheta = theta + THETA_CORRECTION;
+	}
+	
+	return newTheta;
+}
 	
 // initialize filters and prime coord filters w/ 3 readings
 int InitializeFirFilters( RobotInterface *robot )
@@ -57,7 +79,7 @@ int InitializeFirFilters( RobotInterface *robot )
 			robot->update();
 			FirFilter( xFilter, robot->X() );
 			FirFilter( yFilter, robot->Y() );
-			FirFilter( thetaFilter, robot->Theta() );
+			FirFilter( thetaFilter, CorrectTheta( robot->Theta() ) );
 		}
 		
 	}
@@ -95,7 +117,7 @@ int SetOrigin()
 		robot->update();
 		xSum += FirFilter( xFilter, robot->X() );
 		ySum += FirFilter( yFilter, robot->Y() );
-		thetaSum += FirFilter( thetaFilter, robot->Theta() );
+		thetaSum += FirFilter( thetaFilter, CorrectTheta( robot->Theta() ) );
 	}
 	
 	xOrigin = xSum /10;
@@ -110,7 +132,7 @@ int TurnTo( int theta )
 	float thetaCurrent;
 
 	robot->update();
-	thetaCurrent = FirFilter( thetaFilter, robot->Theta() );
+	thetaCurrent = FirFilter( thetaFilter, CorrectTheta( robot->Theta() ) );
 
 	// TODO: Handle case when sign changes
 	
@@ -121,7 +143,7 @@ int TurnTo( int theta )
 			robot->Move( RI_TURN_LEFT, RI_SLOWEST );
 			
 			robot->update();
-			thetaCurrent = FirFilter( thetaFilter, robot->Theta() );
+			thetaCurrent = FirFilter( thetaFilter, CorrectTheta( robot->Theta() ) );
 			printf( "thetaCurrent: %.3f\n", thetaCurrent );
 		}
 	}
@@ -132,7 +154,7 @@ int TurnTo( int theta )
 			robot->Move( RI_TURN_RIGHT, RI_SLOWEST );
 			
 			robot->update();
-			thetaCurrent = FirFilter( thetaFilter, robot->Theta() );
+			thetaCurrent = FirFilter( thetaFilter, CorrectTheta( robot->Theta() ) );
 			printf( "thetaCurrent: %.3f\n", thetaCurrent );
 		}
 	}
@@ -144,48 +166,25 @@ int MoveTo( int x, int y )
 {
 	float xPosCurrent, yPosCurrent, thetaCurrent, xDiff, yDiff, m, newTheta;
 	
-	robot->update();
-	xPosCurrent = FirFilter( xFilter, robot->X() );
-	yPosCurrent = FirFilter( yFilter, robot->Y() );
-	thetaCurrent = FirFilter( thetaFilter, robot->Theta() );
-	
-	//determine theta for direct path
-	xDiff = xPosCurrent - x;
-	yDiff = yPosCurrent - y;
-	
-	// handle undefined slope case
-	if ( xDiff == 0 )
-	{
-		printf("Undefined slope. Exiting.\n");
-		exit(-1);
-	}
-	else
-	{
-		m = yDiff / xDiff;
-		newTheta = atan( m );
-	}
-	
-	printf("Slope: %.3f New Theta: %.3f\n", m, newTheta );
-	
-	//TurnTo( newTheta );
-	
 	// go to x coord first
+	printf("Moving to x coord...\n");
 	while( 1 )
 	{
 		robot->update();
 		xPosCurrent = FirFilter( xFilter, robot->X() );
 		yPosCurrent = FirFilter( yFilter, robot->Y() );
+		thetaCurrent = FirFilter( thetaFilter, CorrectTheta( robot->Theta() ) );
 		
 		printf( "xCur: %.3f, xFin: %d\n", xPosCurrent, x );
 		
 		// robot behind desired x
-		if ( xPosCurrent < x - 100 )
+		if ( xPosCurrent < x - 50 )
 		{
 			robot->Move( RI_MOVE_FORWARD, RI_SLOWEST );
 		}
 		
 		// robot in front of desired x
-		else if ( xPosCurrent >= x + 100 )
+		else if ( xPosCurrent >= x + 50 )
 		{
 			robot->Move( RI_MOVE_BACKWARD, RI_SLOWEST );
 		}
@@ -194,21 +193,6 @@ int MoveTo( int x, int y )
 		else
 			break;
 	}
-	
-	printf("Y TIME! :D\n");
-	
-	//robot is below desired y
-	if ( yPosCurrent < y - 10 )
-	{
-		// TURN AND MOVE
-	}
-	
-	// robot is above desired y
-	else if ( yPosCurrent >= y + 10 )
-	{
-		// TURN AND MOVE
-	}
-	
 	return OK;
 }
 
@@ -225,18 +209,6 @@ void QuitHandler( int s )
 	#endif
 	
 	exit(-1);
-}
-
-// corrects the x coordinate based on theta
-float ThetaCorrectionX( float x, float y, float theta )
-{
-	return ( x * cos(theta) ) - ( y * sin(theta) );
-}
-
-// corrects the y coordinate based on theta
-float ThetaCorrectionY( float x, float y, float theta )
-{
-	return ( x * sin(theta) ) + ( y * cos(theta) );
 }
 
 int main(int argv, char **argc)
@@ -281,15 +253,14 @@ int main(int argv, char **argc)
 	SetOrigin();
 	printf( "Origin set to (%.3f, %.3f) with heading %.3f\n", xOrigin, yOrigin, thetaOrigin );
 	
-	/*
 	// get waypoint coords
 	printf( "Enter x, y of 1st waypoint (space delimeted): " );
 	scanf( "%d %d", &w1x, &w1y );
 	printf( "Moving to position (%d, %d)\n", w1x, w1y );	
 
 	MoveTo( w1x, w1y );
-	*/
 	
+	/*
 	// Action loop
 	do {
 		// Update the robot's sensor information
@@ -316,18 +287,13 @@ int main(int argv, char **argc)
 			
 			xPos = FirFilter( xFilter, robot->X() );
 			yPos = FirFilter( yFilter, robot->Y() );
-			thetaPos = FirFilter( thetaFilter, robot->Theta() );
+			thetaPos = FirFilter( thetaFilter, CorrectTheta( robot->Theta() ) );
 			
 			xTotal += WheelAverageX( rightDist, leftDist ); 
 			yTotal += WheelAverageY( rightDist, leftDist );
 			
 			//printf( "X: %f, Y: %f, THETA: %f, SIG: %d, ROOM: %d\n", xPos, yPos, thetaPos, robot->NavStrengthRaw(), robot->RoomID() );
 			//printf( "RAW X: %d FIR X: %f\n", robot->X(), xPos );
-			
-			// theta correction
-			xPosCorrected = ThetaCorrectionX( xPos, yPos, thetaPos );
-			yPosCorrected = ThetaCorrectionY( xPos, yPos, thetaPos );
-			
 			//printf("theta: %10.3f | x: %10.3f y: %10.3f | x: %10.3f y: %10.3f\n", thetaPos, xPos, yPos, xPosCorrected, yPosCorrected );
 			
 			#ifdef FILEDUMP
@@ -336,6 +302,7 @@ int main(int argv, char **argc)
 			#endif
 		}
 	} while(1);
+	*/
 
 	// Clean up
 	delete(robot);
