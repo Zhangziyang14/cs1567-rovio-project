@@ -28,7 +28,6 @@ float xFinal, yFinal, thetaFinal, rightWheelFinal, leftWheelFinal, rearWheelFina
 
 filter *xFilter = NULL;
 filter *yFilter = NULL;
-filter *thetaFilter = NULL;
 filter *rightWheelFilter = NULL;
 filter *leftWheelFilter = NULL;
 filter *rearWheelFilter = NULL;
@@ -46,10 +45,10 @@ float CorrectTheta( float theta )
 	float temp, newTheta;
 	
 	// check if corrected value exceeds -2pi
-	if ( (theta + THETA_CORRECTION) > (2*PI) )
+	if ( (theta + THETA_CORRECTION) > PI )
 	{
 		temp = theta + THETA_CORRECTION;
-		newTheta = -1 * ( temp - (2*PI) );
+		newTheta = -1 * ( temp - PI );
 	}
 	
 	// otherwise, just correct
@@ -68,7 +67,6 @@ int InitializeFirFilters( RobotInterface *robot )
 		// initialize filters
 		xFilter = FirFilterCreate();
 		yFilter = FirFilterCreate();
-		thetaFilter = FirFilterCreate();
 		rightWheelFilter = FirFilterCreate();
 		leftWheelFilter = FirFilterCreate();
 		rearWheelFilter = FirFilterCreate();
@@ -79,7 +77,6 @@ int InitializeFirFilters( RobotInterface *robot )
 			robot->update();
 			FirFilter( xFilter, robot->X() );
 			FirFilter( yFilter, robot->Y() );
-			FirFilter( thetaFilter, CorrectTheta( robot->Theta() ) );
 		}
 		
 	}
@@ -117,7 +114,7 @@ int SetOrigin()
 		robot->update();
 		xSum += FirFilter( xFilter, robot->X() );
 		ySum += FirFilter( yFilter, robot->Y() );
-		thetaSum += FirFilter( thetaFilter, CorrectTheta( robot->Theta() ) );
+		thetaSum += CorrectTheta( robot->Theta() );
 	}
 	
 	xOrigin = xSum /10;
@@ -129,10 +126,17 @@ int SetOrigin()
 
 int TurnTo( int theta )
 {
-	float thetaCurrent;
-
+	float thetaCurrent, thetaSum;
+	
 	robot->update();
-	thetaCurrent = FirFilter( thetaFilter, CorrectTheta( robot->Theta() ) );
+	
+	// get avg theta
+	for (int i=0; i<10; i++)
+	{
+		thetaSum += CorrectTheta( robot->Theta() );
+	}
+	
+	thetaCurrent = thetaSum / 10;
 
 	// TODO: Handle case when sign changes
 	
@@ -143,7 +147,7 @@ int TurnTo( int theta )
 			robot->Move( RI_TURN_LEFT, RI_SLOWEST );
 			
 			robot->update();
-			thetaCurrent = FirFilter( thetaFilter, CorrectTheta( robot->Theta() ) );
+			thetaCurrent = CorrectTheta( robot->Theta() );
 			printf( "thetaCurrent: %.3f\n", thetaCurrent );
 		}
 	}
@@ -154,7 +158,7 @@ int TurnTo( int theta )
 			robot->Move( RI_TURN_RIGHT, RI_SLOWEST );
 			
 			robot->update();
-			thetaCurrent = FirFilter( thetaFilter, CorrectTheta( robot->Theta() ) );
+			thetaCurrent = CorrectTheta( robot->Theta() );
 			printf( "thetaCurrent: %.3f\n", thetaCurrent );
 		}
 	}
@@ -173,7 +177,7 @@ int MoveTo( int x, int y )
 		robot->update();
 		xPosCurrent = FirFilter( xFilter, robot->X() );
 		yPosCurrent = FirFilter( yFilter, robot->Y() );
-		thetaCurrent = FirFilter( thetaFilter, CorrectTheta( robot->Theta() ) );
+		thetaCurrent = CorrectTheta( robot->Theta() );
 		
 		printf( "xCur: %.3f, xFin: %d\n", xPosCurrent, x );
 		
@@ -287,7 +291,7 @@ int main(int argv, char **argc)
 			
 			xPos = FirFilter( xFilter, robot->X() );
 			yPos = FirFilter( yFilter, robot->Y() );
-			thetaPos = FirFilter( thetaFilter, CorrectTheta( robot->Theta() ) );
+			thetaPos = CorrectTheta( robot->Theta() );
 			
 			xTotal += WheelAverageX( rightDist, leftDist ); 
 			yTotal += WheelAverageY( rightDist, leftDist );
