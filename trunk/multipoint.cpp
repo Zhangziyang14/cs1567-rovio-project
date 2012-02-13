@@ -1,3 +1,7 @@
+/*
+	using BENDER
+*/
+
 #include <robot_if++.h>
 #include <iostream>
 #include <string>
@@ -10,13 +14,14 @@
 #include <fstream>
 
 #define FILEDUMP
+//#define DUMP_NS
 
 #define PI 3.14159265
 #define THETA_CORRECTION 1.5
 
-#define ANGLE_WHEEL_RIGHT 30
-#define ANGLE_WHEEL_LEFT 150
-#define ANGLE_WHEEL_REAR 90
+#define ANGLE_WHEEL_RIGHT 0.523598776
+#define ANGLE_WHEEL_LEFT 2.61799388
+#define ANGLE_WHEEL_REAR 1.57079633
 
 #define OK 0
 #define FAIL -1
@@ -90,15 +95,17 @@ float WheelAverageX( float rightEncoder, float leftEncoder )
 	float rightFinal, leftFinal;
 	rightFinal = rightEncoder * cos( ANGLE_WHEEL_RIGHT );
 	leftFinal = leftEncoder * cos( ANGLE_WHEEL_LEFT );
+	//printf( "WheelAverageX():\nrightFinal: %.3f leftFinal: %.3f\n", rightFinal, leftFinal );
 	return (rightFinal + leftFinal) / 2;
 }
 
-// returns average of computed left and right encoder x-axis motion
+// returns average of computed left and right encoder y-axis motion
 float WheelAverageY( float rightEncoder, float leftEncoder )
 {
 	float rightFinal, leftFinal;
 	rightFinal = rightEncoder * sin( ANGLE_WHEEL_RIGHT );
 	leftFinal = leftEncoder * sin( ANGLE_WHEEL_LEFT );
+	//printf( "WheelAverageY():\nrightFinal: %.3f leftFinal: %.3f\n", rightFinal, leftFinal );
 	return (rightFinal + leftFinal) / 2;
 }
 
@@ -257,14 +264,15 @@ int main(int argv, char **argc)
 	SetOrigin();
 	printf( "Origin set to (%.3f, %.3f) with heading %.3f\n", xOrigin, yOrigin, thetaOrigin );
 	
+	/*
 	// get waypoint coords
 	printf( "Enter x, y of 1st waypoint (space delimeted): " );
 	scanf( "%d %d", &w1x, &w1y );
 	printf( "Moving to position (%d, %d)\n", w1x, w1y );	
 
 	MoveTo( w1x, w1y );
+	*/
 	
-	/*
 	// Action loop
 	do {
 		// Update the robot's sensor information
@@ -274,9 +282,9 @@ int main(int argv, char **argc)
 		}
 		
 		//break at 3 meters
-		if ( xTotal >= 500 )
+		if ( yTotal >= 100 )
 		{
-			printf( "\n3m reached! Final pose:\nxTotal: %f yTotal: %f\nX: %f Y: %f Theta: %f\n", xTotal, yTotal, xPos, yPos, thetaPos );
+			printf( "\n100 ticks reached! Final pose:\nxTotal: %f yTotal: %f\nX: %f Y: %f Theta: %f\n", xTotal, yTotal, xPos, yPos, thetaPos );
 			break;
 		}
 		
@@ -301,12 +309,16 @@ int main(int argv, char **argc)
 			//printf("theta: %10.3f | x: %10.3f y: %10.3f | x: %10.3f y: %10.3f\n", thetaPos, xPos, yPos, xPosCorrected, yPosCorrected );
 			
 			#ifdef FILEDUMP
-			rawDataFile << robot->X() << " " << robot->Y() << " " << robot->Theta() << "\n";
-			filterDataFile << xPos << " " << yPos << " " << thetaPos << "\n";
+				#ifdef DUMP_NS
+				rawDataFile << robot->X() << " " << robot->Y() << " " << robot->Theta() << "\n";
+				filterDataFile << xPos << " " << yPos << " " << thetaPos << "\n";
+				#else
+				rawDataFile << robot->getWheelEncoder( RI_WHEEL_RIGHT ) << " " << robot->getWheelEncoder( RI_WHEEL_LEFT ) << "\n";
+				filterDataFile << rightDist << " " << leftDist << " " << xTotal << " " << yTotal << "\n";
+				#endif
 			#endif
 		}
 	} while(1);
-	*/
 
 	// Clean up
 	delete(robot);
