@@ -44,7 +44,8 @@ std::ofstream rawDataFile;
 std::ofstream filterDataFile;
 #endif
 
-
+/*
+DEPRECATED
 float CorrectTheta( float theta )
 {
 	float temp, newTheta;
@@ -63,6 +64,29 @@ float CorrectTheta( float theta )
 	}
 	
 	return newTheta;
+}
+*/
+
+// corrects theta to 0 at beginning of run
+float CorrectTheta( float oldTheta )
+{
+	// positive theta origin case
+	if ( thetaOrigin >= 0 )
+	{
+		if ( oldTheta - thetaOrigin < -PI )
+			return -1 * ( oldTheta - thetaOrigin + PI );
+		else
+			return oldTheta - thetaOrigin;
+	}
+	
+	// negative theta origin case
+	else
+	{
+		if ( oldTheta + thetaOrigin > PI )
+			return -1 * ( oldTheta + thetaOrigin - PI );
+		else
+			return oldTheta + thetaOrigin;
+	}
 }
 	
 // initialize filters and prime coord filters w/ 3 readings
@@ -121,12 +145,15 @@ int SetOrigin()
 		robot->update();
 		xSum += FirFilter( xFilter, robot->X() );
 		ySum += FirFilter( yFilter, robot->Y() );
-		thetaSum += CorrectTheta( robot->Theta() );
+		thetaSum += robot->Theta();
 	}
 	
 	xOrigin = xSum /10;
 	yOrigin = ySum /10;
 	thetaOrigin = thetaSum /10;
+
+	printf( "thetaOrigin:	%.3f\n", thetaOrigin );
+	printf( "0'd theta:	%.3f\n", CorrectTheta( thetaOrigin ) );
 
 	return OK;
 }
