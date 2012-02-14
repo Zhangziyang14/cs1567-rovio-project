@@ -17,7 +17,6 @@
 //#define DUMP_NS
 
 #define PI 3.14159265
-#define THETA_CORRECTION 1.5
 
 #define ANGLE_WHEEL_RIGHT 0.523598776
 #define ANGLE_WHEEL_LEFT 2.61799388
@@ -28,8 +27,10 @@
 
 #define FAILED(x) ((x) == OK) ? false : true
 
-float xOrigin, yOrigin, thetaOrigin, rightWheelOrigin, leftWheelOrigin, rearWheelOrigin;
+float xOrigin, yOrigin, rightWheelOrigin, leftWheelOrigin, rearWheelOrigin;
 float xFinal, yFinal, thetaFinal, rightWheelFinal, leftWheelFinal, rearWheelFinal;
+float thetaCorrection;
+int currentRoom;
 
 filter *xFilter = NULL;
 filter *yFilter = NULL;
@@ -44,48 +45,25 @@ std::ofstream rawDataFile;
 std::ofstream filterDataFile;
 #endif
 
-/*
-DEPRECATED
-float CorrectTheta( float theta )
-{
-	float temp, newTheta;
-	
-	// check if corrected value exceeds -2pi
-	if ( (theta + THETA_CORRECTION) > PI )
-	{
-		temp = theta + THETA_CORRECTION;
-		newTheta = -1 * ( temp - PI );
-	}
-	
-	// otherwise, just correct
-	else
-	{
-		newTheta = theta + THETA_CORRECTION;
-	}
-	
-	return newTheta;
-}
-*/
-
 // corrects theta to 0 at beginning of run
 float CorrectTheta( float oldTheta )
 {
 	// positive theta origin case
-	if ( thetaOrigin >= 0 )
+	if ( thetaCorrection >= 0 )
 	{
-		if ( oldTheta - thetaOrigin < -PI )
-			return -1 * ( oldTheta - thetaOrigin + PI );
+		if ( oldTheta - thetaCorrection < -PI )
+			return -1 * ( oldTheta - thetaCorrection + PI );
 		else
-			return oldTheta - thetaOrigin;
+			return oldTheta - thetaCorrection;
 	}
 	
 	// negative theta origin case
 	else
 	{
-		if ( oldTheta + thetaOrigin > PI )
-			return -1 * ( oldTheta + thetaOrigin - PI );
+		if ( oldTheta + thetaCorrection > PI )
+			return -1 * ( oldTheta + thetaCorrection - PI );
 		else
-			return oldTheta + thetaOrigin;
+			return oldTheta + thetaCorrection;
 	}
 }
 	
@@ -150,11 +128,24 @@ int SetOrigin()
 	
 	xOrigin = xSum /10;
 	yOrigin = ySum /10;
-	thetaOrigin = thetaSum /10;
+	thetaCorrection = thetaSum /10;
 
-	printf( "thetaOrigin:	%.3f\n", thetaOrigin );
-	printf( "0'd theta:	%.3f\n", CorrectTheta( thetaOrigin ) );
+	printf( "thetaCorrection:	%.3f\n", thetaCorrection );
+	printf( "0'd theta:		%.3f\n", CorrectTheta( thetaCorrection ) );
 
+	return OK;
+}
+
+// handle theta correction for switching rooms, also changes currentRoom
+int RoomSwitch( float oldTheta, float newTheta )
+{
+	if ( oldTheta - newTheta < -PI )
+		thetaCorrection = -1 * ( oldTheta - newTheta + PI );
+	else
+		thetaCorrection = oldTheta - newTheta;
+		
+	currentRoom = robot->RoomID();
+	
 	return OK;
 }
 
@@ -289,7 +280,7 @@ int main(int argv, char **argc)
 	// set origin
 	printf( "Gathering origin data...\n");
 	SetOrigin();
-	printf( "Origin set to (%.3f, %.3f) with heading %.3f\n", xOrigin, yOrigin, thetaOrigin );
+	printf( "Origin set to (%.3f, %.3f) with heading %.3f\n", xOrigin, yOrigin, thetaCorrection );
 	
 	/*
 	// get waypoint coords
@@ -309,10 +300,15 @@ int main(int argv, char **argc)
 		}
 		
 		//break at 3 meters
-		if ( yTotal >= 100 )
+		if ( yTotal >= 1000 )
 		{
 			printf( "\n100 ticks reached! Final pose:\nxTotal: %f yTotal: %f\nX: %f Y: %f Theta: %f\n", xTotal, yTotal, xPos, yPos, thetaPos );
 			break;
+		}
+		
+		if ( currentRoom != robot->RoomID() )
+		{
+			RoomSwitch( thetaPos, robot->Theta() );
 		}
 		
 		// Move unless there's something in front of the robot
@@ -331,9 +327,7 @@ int main(int argv, char **argc)
 			xTotal += WheelAverageX( rightDist, leftDist ); 
 			yTotal += WheelAverageY( rightDist, leftDist );
 			
-			//printf( "X: %f, Y: %f, THETA: %f, SIG: %d, ROOM: %d\n", xPos, yPos, thetaPos, robot->NavStrengthRaw(), robot->RoomID() );
-			//printf( "RAW X: %d FIR X: %f\n", robot->X(), xPos );
-			//printf("theta: %10.3f | x: %10.3f y: %10.3f | x: %10.3f y: %10.3f\n", thetaPos, xPos, yPos, xPosCorrected, yPosCorrected );
+			printf( "Room %d signal: %d Theta: %.3f\n", currentRoom, robot->NavStrengthRaw(), thetaPos );
 			
 			#ifdef FILEDUMP
 				#ifdef DUMP_NS
