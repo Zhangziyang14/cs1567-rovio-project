@@ -3,12 +3,12 @@ LIB_FLAGS=-L. -lrobot_if
 CPP_LIB_FLAGS=${LIB_FLAGS} -lrobot_if++
 LIB_LINK=-lhighgui -lcv -lcxcore
 
-all: driver
+all: multipoint
 
-driver: driver.cpp
-	g++ ${CFLAGS} -c driver.cpp
-	g++ ${CFLAGS} -o rovio driver.o ${CPP_LIB_FLAGS} ${LIB_LINK}
+multipoint: multipoint.cpp
+	g++ ${CFLAGS} -c multipoint.cpp
+	g++ ${CFLAGS} -o multipoint multipoint.o ${CPP_LIB_FLAGS} ${LIB_LINK}
 
 clean:
 	rm -rf *.o
-	rm -rf rovio
+	rm -rf multipoint
