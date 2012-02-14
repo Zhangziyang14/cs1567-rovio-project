@@ -1,18 +1,17 @@
-/*
-	using BENDER
-*/
-
 #include <robot_if++.h>
 #include <iostream>
 #include <string>
 #include <stdio.h>
 #include <math.h>
 
-#include "fir.h"
 #include <stdlib.h>
 #include <signal.h>
 #include <fstream>
 
+#include "fir.h"
+extern "C" {
+	#include "kalman/kalmanFilterDef.h"
+}
 //#define FILEDUMP
 //#define DUMP_NS
 
@@ -22,13 +21,16 @@
 #define ANGLE_WHEEL_LEFT 2.61799388
 #define ANGLE_WHEEL_REAR 1.57079633
 
+#define TICKS_PER_INCH 5.5
+
 #define OK 0
 #define FAIL -1
 
 #define FAILED(x) ((x) == OK) ? false : true
 
-float xOrigin, yOrigin, rightWheelOrigin, leftWheelOrigin, rearWheelOrigin;
-float xFinal, yFinal, thetaFinal, rightWheelFinal, leftWheelFinal, rearWheelFinal;
+float xNSOrigin, yNSOrigin;
+int xEncCoord, yEncCoord;
+float yTotal;
 float thetaCorrection;
 int currentRoom;
 
@@ -37,6 +39,8 @@ filter *yFilter = NULL;
 filter *rightWheelFilter = NULL;
 filter *leftWheelFilter = NULL;
 filter *rearWheelFilter = NULL;
+
+kalmanFilter *kf = NULL;
 
 RobotInterface *robot;
 
@@ -86,9 +90,54 @@ int InitializeFirFilters( RobotInterface *robot )
 			FirFilter( yFilter, robot->Y() );
 		}
 		
+		return OK;
 	}
 	
-	return OK;
+	return FAIL;
+}
+// initializes kalman filter to default values
+int InitializeKalmanFilter( RobotInterface *robot )
+{
+	float *initPose = new float[3];
+	float *velocity = new float[3];
+	int deltat = 1;
+
+	if ( robot->update() == RI_RESP_SUCCESS )
+	{
+		initPose[0] = FirFilter( xFilter, robot->X() );
+		initPose[1] = FirFilter( yFilter, robot->Y() );
+		initPose[2] = CorrectTheta( robot->Theta() );
+		
+		velocity[0] = 0;
+		velocity[1] = 0;
+		velocity[2] = 0;
+		
+		initKalmanFilter( kf, initPose, velocity, deltat );
+		
+		return OK;
+	}
+	
+	return FAIL;
+}
+
+// updates kalman filter with current sensor data, returns prediction array
+float *UpdateKalman()
+{
+	float *curPose = new float[3];
+	float *curVel = new float[3];
+	float *predicted = new float[9];
+	
+	curPose[0] = FirFilter( xFilter, robot->X() );
+	curPose[1] = FirFilter( yFilter, robot->Y() );
+	curPose[2] = CorrectTheta( robot->Theta() );
+	
+	curVel[0] = 0;
+	curVel[1] = 0;
+	curVel[2] = 0;
+	
+	rovioKalmanFilter( kf, curPose, curVel, predicted );
+	
+	return predicted;
 }
 
 // returns average of computed left and right encoder x-axis motion
@@ -126,12 +175,12 @@ int SetOrigin()
 		thetaSum += robot->Theta();
 	}
 	
-	xOrigin = xSum /10;
-	yOrigin = ySum /10;
+	xNSOrigin = xSum /10;
+	yNSOrigin = ySum /10;
 	thetaCorrection = thetaSum /10;
-
-	printf( "thetaCorrection:	%.3f\n", thetaCorrection );
-	printf( "0'd theta:		%.3f\n", CorrectTheta( thetaCorrection ) );
+	
+	xEncCoord = 0;
+	yEncCoord = 0;
 
 	return OK;
 }
@@ -149,9 +198,11 @@ int RoomSwitch( float oldTheta, float newTheta )
 	return OK;
 }
 
-int TurnTo( int theta )
+int TurnTo( float theta )
 {
 	float thetaCurrent, thetaSum;
+	
+	printf("INSIDE TURNTO theta: %f\n", theta);
 	
 	robot->update();
 	
@@ -165,63 +216,87 @@ int TurnTo( int theta )
 
 	// TODO: Handle case when sign changes
 	
-	if ( theta > thetaCurrent )
+	printf("thetaCurrent: %.3f, theta: %.3f\n", thetaCurrent, theta );
+	
+	while ( thetaCurrent <= theta-0.05 && thetaCurrent > theta+0.05 )
 	{
-		while ( theta > thetaCurrent )
+		printf("thetaCurrent: %.3f, theta: %.3f\n", thetaCurrent, theta );
+		
+		if ( thetaCurrent < theta )
 		{
 			robot->Move( RI_TURN_LEFT, RI_SLOWEST );
 			
 			robot->update();
 			thetaCurrent = CorrectTheta( robot->Theta() );
-			printf( "thetaCurrent: %.3f\n", thetaCurrent );
 		}
-	}
-	else
-	{
-		while ( theta < thetaCurrent )
+		
+		else
 		{
 			robot->Move( RI_TURN_RIGHT, RI_SLOWEST );
 			
 			robot->update();
 			thetaCurrent = CorrectTheta( robot->Theta() );
-			printf( "thetaCurrent: %.3f\n", thetaCurrent );
 		}
 	}
 	
 	return OK;
 }
 
+// returns the required theta for positioning toward the given coords
+float GetRads( float newX, float newY )
+{
+	float m;
+	
+	m = ( ((float)xEncCoord*TICKS_PER_INCH) + newX ) / ( ((float)yEncCoord*TICKS_PER_INCH) + newY );
+	printf( "\nM: %.3f Theta: %.3f\n\n", m, (2*atan(m)) );
+	return 2*atan( m );
+}
+
 int MoveTo( int x, int y )
 {
-	float xPosCurrent, yPosCurrent, thetaCurrent, xDiff, yDiff, m, newTheta;
+	yTotal = 0.0;
+	int speed = RI_FASTEST;
+	float rightEnc, leftEnc, yTicks, xTicks, ticks, newTheta;
+	bool speedCheck = true;
 	
-	// go to x coord first
-	printf("Moving to x coord...\n");
-	while( 1 )
+	// convert x&y to ticks
+	yTicks = y * TICKS_PER_INCH;
+	xTicks = x * TICKS_PER_INCH;
+	
+	ticks = sqrt( pow(xTicks, 2) + pow(yTicks, 2) );
+	
+	newTheta = GetRads( xTicks, yTicks );
+	if ( newTheta != 0.0 )
 	{
-		robot->update();
-		xPosCurrent = FirFilter( xFilter, robot->X() );
-		yPosCurrent = FirFilter( yFilter, robot->Y() );
-		thetaCurrent = CorrectTheta( robot->Theta() );
-		
-		printf( "xCur: %.3f, xFin: %d\n", xPosCurrent, x );
-		
-		// robot behind desired x
-		if ( xPosCurrent < x - 50 )
-		{
-			robot->Move( RI_MOVE_FORWARD, RI_SLOWEST );
-		}
-		
-		// robot in front of desired x
-		else if ( xPosCurrent >= x + 50 )
-		{
-			robot->Move( RI_MOVE_BACKWARD, RI_SLOWEST );
-		}
-		
-		// robot within +-100 of destination
-		else
-			break;
+		printf("Turning to %f\n", newTheta);
+		TurnTo( newTheta );
 	}
+	
+	robot->update();
+	
+	// move at top speed until w/in 20% of goal
+	while ( 1 && !robot->IR_Detected() )
+	{
+		robot->Move( RI_MOVE_FORWARD, speed );
+		robot->update();
+		
+		rightEnc = FirFilter( rightWheelFilter, robot->getWheelEncoder( RI_WHEEL_RIGHT ) );
+		leftEnc = FirFilter( leftWheelFilter, robot->getWheelEncoder( RI_WHEEL_LEFT ) );
+		yTotal +=  WheelAverageY( rightEnc, leftEnc );
+		
+		if ( yTotal >= (.8 * ticks ) && speedCheck )
+		{
+			speed = RI_SLOWEST;
+			speedCheck = false;
+			printf("\nSLOOOOOOOOOOW DOOOOOOOOWN\n\n");
+		}
+		
+		if ( yTotal >= ticks )
+			break;	
+
+		printf("yTotal: %.3f\n", yTotal);
+	}
+
 	return OK;
 }
 
@@ -242,13 +317,6 @@ void QuitHandler( int s )
 
 int main(int argv, char **argc)
 {
-	float xTotal = 0.0, yTotal = 0.0;
-	float rightDist, leftDist, rearDist;
-	float xPos, yPos, thetaPos;
-	float xPosCorrected, yPosCorrected;
-	
-	int w1x, w1y;
-	
 	// set up ctrl+c handler struct
 	struct sigaction sigIntHandler;
 	sigIntHandler.sa_handler = QuitHandler;
@@ -265,12 +333,22 @@ int main(int argv, char **argc)
 	// Setup the robot interface
 	robot = new RobotInterface(argc[1],0);
 	
-	// initialize origins and fir filters for each sensor
+	// initialize fir filters for each sensor
 	if ( FAILED( InitializeFirFilters( robot ) ) )
 	{
-		std::cout << "Failed to initialize filters. Exiting" << std::endl;
+		std::cout << "Failed to initialize fir filters. Exiting" << std::endl;
 		exit(-1);
 	}
+	
+	/*
+	// initialize kalman filter
+	if ( FAILED( InitializeKalmanFilter( robot ) ) )
+	{
+		std::cout << "Failed to initialize kalman filter. Exiting" << std::endl;
+		exit(-1);
+	}
+	*/
+	
 	
 	#ifdef FILEDUMP
 	rawDataFile.open("data/rawData.txt");
@@ -280,17 +358,23 @@ int main(int argv, char **argc)
 	// set origin
 	printf( "Gathering origin data...\n");
 	SetOrigin();
-	printf( "Origin set to (%.3f, %.3f) with heading %.3f\n", xOrigin, yOrigin, thetaCorrection );
+	printf( "Origin set to (%.3f, %.3f) with heading %.3f\n", xNSOrigin, yNSOrigin, thetaCorrection );
 	
 	/*
 	// get waypoint coords
 	printf( "Enter x, y of 1st waypoint (space delimeted): " );
 	scanf( "%d %d", &w1x, &w1y );
-	printf( "Moving to position (%d, %d)\n", w1x, w1y );	
-
-	MoveTo( w1x, w1y );
+	printf( "Moving to position (%d, %d)\n", w1x, w1y );
 	*/
 	
+	printf("Navigating to 1st waypoint...\n");
+	MoveTo( 0, 135 );
+	yEncCoord = 135;
+	
+	printf("Navigating to 2nd waypoint...\n");
+	MoveTo( 75, 90 );
+	
+	/*
 	// Action loop
 	do {
 		// Update the robot's sensor information
@@ -310,6 +394,8 @@ int main(int argv, char **argc)
 		{
 			RoomSwitch( thetaPos, robot->Theta() );
 		}
+		
+		//UpdateKalman();
 		
 		// Move unless there's something in front of the robot
 		if(!robot->IR_Detected())
@@ -340,7 +426,10 @@ int main(int argv, char **argc)
 			#endif
 		}
 	} while(1);
-
+	*/
+	
+	printf( "Stopped at %.3f ticks (%.3f inches)\n", yTotal, (yTotal/TICKS_PER_INCH) );
+	
 	// Clean up
 	delete(robot);
 	
