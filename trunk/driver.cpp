@@ -9,7 +9,7 @@
 
 #include "fir.h"
 #include "function.h"
-#include "robot.h"
+#include "AwesomeBot.h"
 
 #define FILEDUMP
 //#define DUMP_NS
