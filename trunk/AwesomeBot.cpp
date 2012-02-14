@@ -1,16 +1,41 @@
-#include "robot.h"
-#include "function.h"
+#include "AwesomeBot.h"
+#include "Functions.h"
+
+
+
+/**
+* public constructor
+* @name is the name of robot
+* @filterLsit is an array of filter for left, right, back, XY, theta filter
+*/
+AwesomeBot::AwesomeBot(string name):	
+{
+	robot = new RobotInterface(name,0);
+	InitializeFirFilters(robot);
+}
+
+/**
+* deconstructor
+*/
+AwesomeBot::~AwesomeBot() {
+	delete(robot);
+	delete(lFilter);
+	delete(bFilter);
+	delete(YFilter);
+	delete(XFilter);
+	delete(ThetaFilter);
+}
 
 // initialize filters and prime coord filters w/ 3 readings
-int InitializeFirFilters( RobotInterface *robot )
+int AwesomeBot::InitializeFirFilters( RobotInterface *robot )
 {
 	if ( robot->update() == RI_RESP_SUCCESS ) {		
 		// initialize filters
 		xFilter = FirFilterCreate();
 		yFilter = FirFilterCreate();
-		rightWheelFilter = FirFilterCreate();
-		leftWheelFilter = FirFilterCreate();
-		rearWheelFilter = FirFilterCreate();
+		rFilter = FirFilterCreate();
+		lFilter = FirFilterCreate();
+		bFilter = FirFilterCreate();
 		
 		// prime filters w/ 3 readings
 		for ( int i=0; i<3; i++ )
@@ -27,7 +52,7 @@ int InitializeFirFilters( RobotInterface *robot )
 
 
 // determines approx origin by averaging 10 readings
-int SetOrigin()
+int AwesomeBot::SetOrigin()
 {
 	float xSum = 0;
 	float ySum = 0;
@@ -53,7 +78,7 @@ int SetOrigin()
 	return OK;
 }
 
-int TurnTo( int theta )
+int AwesomeBot::TurnTo( int theta )
 {
 	float thetaCurrent, thetaSum;
 	
@@ -95,7 +120,7 @@ int TurnTo( int theta )
 	return OK;
 }
 
-int MoveTo( int x, int y )
+int AwesomeBot::MoveTo( int x, int y )
 {
 	float xPosCurrent, yPosCurrent, thetaCurrent, xDiff, yDiff, m, newTheta;
 	
