@@ -13,7 +13,7 @@
 #include <signal.h>
 #include <fstream>
 
-#define FILEDUMP
+//#define FILEDUMP
 //#define DUMP_NS
 
 #define PI 3.14159265
@@ -300,9 +300,9 @@ int main(int argv, char **argc)
 		}
 		
 		//break at 3 meters
-		if ( yTotal >= 1000 )
+		if ( yTotal >= 100 )
 		{
-			printf( "\n100 ticks reached! Final pose:\nxTotal: %f yTotal: %f\nX: %f Y: %f Theta: %f\n", xTotal, yTotal, xPos, yPos, thetaPos );
+			printf( "\n%.3f ticks reached!\n", yTotal );
 			break;
 		}
 		
@@ -327,7 +327,7 @@ int main(int argv, char **argc)
 			xTotal += WheelAverageX( rightDist, leftDist ); 
 			yTotal += WheelAverageY( rightDist, leftDist );
 			
-			printf( "Room %d signal: %d Theta: %.3f\n", currentRoom, robot->NavStrengthRaw(), thetaPos );
+			//printf( "Room %d signal: %d Theta: %.3f\n", currentRoom, robot->NavStrengthRaw(), thetaPos );
 			
 			#ifdef FILEDUMP
 				#ifdef DUMP_NS
