@@ -14,8 +14,8 @@
 // part of the weight computation in each step is based on the amount of uncertainty associated with
 // each of the three values
 // **** you are free to adjust these values as you like ***** 
-#define NORTHSTAR_UNCERTAINTY_X  .05 // this is the uncertainty of the northstar readings, we are providing
-#define NORTHSTAR_UNCERTAINTY_Y  .05 // you with the capability to independently set the x,y,and theta
+#define NORTHSTAR_UNCERTAINTY_X  .90 // this is the uncertainty of the northstar readings, we are providing
+#define NORTHSTAR_UNCERTAINTY_Y  .90 // you with the capability to independently set the x,y,and theta
 #define NORTHSTAR_UNCERTAINTY_TH .05
 
 #define WHEELENC_UNCERTAINTY_X  .05 // this is the uncertainty of the wheel encoder readings, 

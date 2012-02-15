@@ -149,11 +149,11 @@ void rovioKalmanFilter(kalmanFilter *kf, float *meas_S1, float *meas_S2, float *
 
 	/* W1 * residual_s1' */
 	cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, FILTER_SIZE, FILTER_SIZE, 1, 1.0f,
-		kf->W1, FILTER_SIZE, kf->residual_s1, FILTER_SIZE, 0.0f, temp, 1);
+		kf->W1, FILTER_SIZE, kf->residual_s1, FILTER_SIZE, 0.0f, temp, FILTER_SIZE);
 
 	/* W2 * residual_s2' */	
 	cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, FILTER_SIZE, FILTER_SIZE, 1, 1.0f,
-		kf->W2, FILTER_SIZE, kf->residual_s2, FILTER_SIZE, 0.0f, temp2, 1);
+		kf->W2, FILTER_SIZE, kf->residual_s2, FILTER_SIZE, 0.0f, temp2, FILTER_SIZE);
 	/* temp = temp + temp2 */
 	for(i=0; i<FILTER_SIZE; i++)
 		temp[i] = temp[i] + temp2[i];
