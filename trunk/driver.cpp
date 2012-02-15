@@ -85,6 +85,26 @@ float CorrectTheta( float oldTheta )
 	}
 }
 
+// returns average of computed left and right encoder x-axis motion
+float WheelAverageX( float rightEncoder, float leftEncoder )
+{
+	float rightFinal, leftFinal;
+	rightFinal = rightEncoder * cos( ANGLE_WHEEL_RIGHT );
+	leftFinal = leftEncoder * cos( ANGLE_WHEEL_LEFT );
+	//printf( "WheelAverageX():\nrightFinal: %.3f leftFinal: %.3f\n", rightFinal, leftFinal );
+	return (rightFinal + leftFinal) / 2;
+}
+
+// returns average of computed left and right encoder y-axis motion
+float WheelAverageY( float rightEncoder, float leftEncoder )
+{
+	float rightFinal, leftFinal;
+	rightFinal = rightEncoder * sin( ANGLE_WHEEL_RIGHT );
+	leftFinal = leftEncoder * sin( ANGLE_WHEEL_LEFT );
+	//printf( "WheelAverageY():\nrightFinal: %.3f leftFinal: %.3f\n", rightFinal, leftFinal );
+	return (rightFinal + leftFinal) / 2;
+}
+
 float NSDegreeToMyDegree(float oldD, int roomID){
 	float degree = oldD;
 	switch(roomID) {
@@ -92,10 +112,10 @@ float NSDegreeToMyDegree(float oldD, int roomID){
 			degree = 360+75 - oldD;
 			break;
 		case 3: //room3
-			degree = 360+1 - oldD;
+			degree = 360 - oldD;
 			break;
 		case 4: //room 4
-			degree = 360+1 - oldD;
+			degree = 360+55 - oldD;
 			break;
 		case 5: //room 5
 			degree = 360+1 - oldD;
@@ -121,7 +141,7 @@ void updateNorthStar(int flag,int roomID){
 				printf("Failed to update sensor information!\n");
 			}
 			if(step>13){
-				degree += NSDegreeToMyDegree(TODEGREE(robot->Theta()),2);
+				degree += NSDegreeToMyDegree(TODEGREE(robot->Theta()), robot->RoomID());
 				rawD += TODEGREE(robot->Theta());
 			}
 			step++;
@@ -164,9 +184,11 @@ int InitializeFirFilters( RobotInterface *robot )
 // initializes kalman filter to default values
 int InitializeKalmanFilter( RobotInterface *robot )
 {
-	float *initPose = new float[3];
-	float *velocity = new float[3];
+	float *initPose = (float *)malloc(sizeof(float) * 3);
+	float *velocity = (float *)malloc(sizeof(float) * 3);
 	int deltat = 1;
+	
+	kf = (kalmanFilter *)malloc(sizeof(kalmanFilter));
 
 	if ( robot->update() == RI_RESP_SUCCESS )
 	{
@@ -174,9 +196,9 @@ int InitializeKalmanFilter( RobotInterface *robot )
 		initPose[1] = FirFilter( yFilter, robot->Y() );
 		initPose[2] = CorrectTheta( robot->Theta() );
 		
-		velocity[0] = 0;
-		velocity[1] = 0;
-		velocity[2] = 0;
+		velocity[0] = 0.0;
+		velocity[1] = 0.0;
+		velocity[2] = 0.0;
 		
 		initKalmanFilter( kf, initPose, velocity, deltat );
 		
@@ -189,41 +211,27 @@ int InitializeKalmanFilter( RobotInterface *robot )
 // updates kalman filter with current sensor data, returns prediction array
 float *UpdateKalman()
 {
-	float *curPose = new float[3];
-	float *curVel = new float[3];
-	float *predicted = new float[9];
+	float *curPose = (float *)malloc(sizeof(float) * 3);
+	float *curWheelEnc = (float *)malloc(sizeof(float) * 3);
+	float *predicted = (float *)malloc(sizeof(float) * 9);
+	
+	float x, y, theta;
 	
 	curPose[0] = FirFilter( xFilter, robot->X() );
 	curPose[1] = FirFilter( yFilter, robot->Y() );
 	curPose[2] = CorrectTheta( robot->Theta() );
 	
-	curVel[0] = 0;
-	curVel[1] = 0;
-	curVel[2] = 0;
+	x = WheelAverageX( robot->getWheelEncoderTotals( RI_WHEEL_RIGHT), robot->getWheelEncoderTotals( RI_WHEEL_LEFT ) ) / TICKS_PER_INCH;
+	y =  WheelAverageY( robot->getWheelEncoderTotals( RI_WHEEL_RIGHT), robot->getWheelEncoderTotals( RI_WHEEL_LEFT ) ) / TICKS_PER_INCH;
+	theta = robot->getWheelEncoderTotals( RI_WHEEL_REAR ) / ( PI * 11 ) / TICKS_PER_INCH;
 	
-	rovioKalmanFilter( kf, curPose, curVel, predicted );
+	curWheelEnc[0] = x; // X
+	curWheelEnc[1] = y; // Y
+	curWheelEnc[2] = theta; // Theta
+	
+	rovioKalmanFilter( kf, curPose, curWheelEnc, predicted );
 	
 	return predicted;
-}
-
-// returns average of computed left and right encoder x-axis motion
-float WheelAverageX( float rightEncoder, float leftEncoder )
-{
-	float rightFinal, leftFinal;
-	rightFinal = rightEncoder * cos( ANGLE_WHEEL_RIGHT );
-	leftFinal = leftEncoder * cos( ANGLE_WHEEL_LEFT );
-	//printf( "WheelAverageX():\nrightFinal: %.3f leftFinal: %.3f\n", rightFinal, leftFinal );
-	return (rightFinal + leftFinal) / 2;
-}
-
-// returns average of computed left and right encoder y-axis motion
-float WheelAverageY( float rightEncoder, float leftEncoder )
-{
-	float rightFinal, leftFinal;
-	rightFinal = rightEncoder * sin( ANGLE_WHEEL_RIGHT );
-	leftFinal = leftEncoder * sin( ANGLE_WHEEL_LEFT );
-	//printf( "WheelAverageY():\nrightFinal: %.3f leftFinal: %.3f\n", rightFinal, leftFinal );
-	return (rightFinal + leftFinal) / 2;
 }
 
 // determines approx origin by averaging 10 readings
@@ -245,29 +253,18 @@ int SetOrigin()
 	yNSOrigin = ySum /10;
 	//thetaCorrection = thetaSum /10;
 	
+	/*
 	originDegree = 0;
 	for(int i=0;i<10;i++){
 		updateNorthStar(ACTION_TURN,1);
 		originDegree += aveWeightedDegree;
 	}
 	originDegree = originDegree/10;//setting origin degree
+	*/
 
 	xEncCoord = 0;
 	yEncCoord = 0;
 
-	return OK;
-}
-
-// handle theta correction for switching rooms, also changes currentRoom
-int RoomSwitch( float oldTheta, float newTheta )
-{
-	if ( oldTheta - newTheta < -PI )
-		thetaCorrection = -1 * ( oldTheta - newTheta + PI );
-	else
-		thetaCorrection = oldTheta - newTheta;
-		
-	currentRoom = robot->RoomID();
-	
 	return OK;
 }
 
@@ -382,16 +379,6 @@ int TurnTo( float target )
 	return OK;
 }
 
-// returns the required theta for positioning toward the given coords
-float GetRads( float newX, float newY )
-{
-	float m;
-	
-	m = ( ((float)xEncCoord*TICKS_PER_INCH) + newX ) / ( ((float)yEncCoord*TICKS_PER_INCH) + newY );
-	printf( "\nM: %.3f Theta: %.3f\n\n", m, (2*atan(m)) );
-	return 2*atan( m );
-}
-
 int MoveTo( int x, int y )
 {
 	yTotal = 0.0;
@@ -399,18 +386,14 @@ int MoveTo( int x, int y )
 	float rightEnc, leftEnc, yTicks, xTicks, ticks, newTheta;
 	bool speedCheck = true;
 	
+	y = y - yEncCoord;
+	x = x - xEncCoord;
+	
 	// convert x&y to ticks
 	yTicks = y * TICKS_PER_INCH;
 	xTicks = x * TICKS_PER_INCH;
 	
 	ticks = sqrt( pow(xTicks, 2) + pow(yTicks, 2) );
-	
-	newTheta = GetRads( xTicks, yTicks );
-	if ( newTheta != 0.0 )
-	{
-		printf("Turning to %f\n", newTheta);
-		TurnTo( newTheta );
-	}
 	
 	robot->update();
 	
@@ -428,13 +411,12 @@ int MoveTo( int x, int y )
 		{
 			speed = RI_SLOWEST;
 			speedCheck = false;
-			printf("\nSLOOOOOOOOOOW DOOOOOOOOWN\n\n");
 		}
 		
 		if ( yTotal >= ticks )
 			break;	
 
-		printf("yTotal: %.3f\n", yTotal);
+		//printf("yTotal: %.3f\n", yTotal);
 	}
 
 	return OK;
@@ -480,14 +462,13 @@ int main(int argv, char **argc)
 		exit(-1);
 	}
 	
-	/*
+	
 	// initialize kalman filter
 	if ( FAILED( InitializeKalmanFilter( robot ) ) )
 	{
 		std::cout << "Failed to initialize kalman filter. Exiting" << std::endl;
 		exit(-1);
 	}
-	*/
 	
 	
 	#ifdef FILEDUMP
@@ -498,93 +479,25 @@ int main(int argv, char **argc)
 	// set origin
 	printf( "Gathering origin data...\n");
 	SetOrigin();
-	printf( "Origin set to (%.3f, %.3f) with heading %.3f\n", xNSOrigin, yNSOrigin, thetaCorrection );
-	
-	/*
-	// get waypoint coords
-	printf( "Enter x, y of 1st waypoint (space delimeted): " );
-	scanf( "%d %d", &w1x, &w1y );
-	printf( "Moving to position (%d, %d)\n", w1x, w1y );
-	*/
+	printf( "Origin set to (%.3f, %.3f) with heading %.3f\n", xNSOrigin, yNSOrigin, thetaCorrection );	
 	
 	printf("Navigating to 1st waypoint...\n");
 	
-	TurnTo((float)5);
-	//for(int i=0;i<20;i++){
-	//	updateNorthStar(ACTION_TURN,1);
-
-	//}
-	//MoveTo( 0, 30 );
-	//for(int i=0;i<10;i++){
-	//	updateNorthStar(ACTION_TURN,1);
-	//}
-	//MoveTo( 0, 30 );
-	//for(int i=0;i<10;i++){
-	//	updateNorthStar(ACTION_TURN,1);
-	//}
-	//MoveTo( 0, 30 );
-	//TurnTo((float)135);
-	//MoveTo(0,20);
-
-	//MoveTo( 0, 135 );
-	//yEncCoord = 135;
+	MoveTo( 0, 135 );
+	xEncCoord = 0;
+	yEncCoord = 135;
 	
-	//printf("Navigating to 2nd waypoint...\n");
-	//MoveTo( 75, 90 );
+	TurnTo((float)225);
 	
-	/*
-	// Action loop
-	do {
-		// Update the robot's sensor information
-		if(robot->update() != RI_RESP_SUCCESS) {
-			std::cout << "Failed to update sensor information!" << std::endl;
-			break;
-		}
-		
-		//break at 3 meters
-		if ( yTotal >= 100 )
-		{
-			printf( "\n%.3f ticks reached!\n", yTotal );
-			break;
-		}
-		
-		if ( currentRoom != robot->RoomID() )
-		{
-			RoomSwitch( thetaPos, robot->Theta() );
-		}
-		
-		//UpdateKalman();
-		
-		// Move unless there's something in front of the robot
-		if(!robot->IR_Detected())
-		{
-			robot->Move( RI_MOVE_FORWARD, RI_SLOWEST );
-			
-			rightDist = FirFilter( rightWheelFilter, robot->getWheelEncoder( RI_WHEEL_RIGHT ) );
-			leftDist = FirFilter( leftWheelFilter, robot->getWheelEncoder( RI_WHEEL_LEFT ) );
-			rearDist = FirFilter( rearWheelFilter, robot->getWheelEncoder( RI_WHEEL_REAR ) );
-			
-			xPos = FirFilter( xFilter, robot->X() );
-			yPos = FirFilter( yFilter, robot->Y() );
-			thetaPos = CorrectTheta( robot->Theta() );
-			
-			xTotal += WheelAverageX( rightDist, leftDist ); 
-			yTotal += WheelAverageY( rightDist, leftDist );
-			
-			//printf( "Room %d signal: %d Theta: %.3f\n", currentRoom, robot->NavStrengthRaw(), thetaPos );
-			
-			#ifdef FILEDUMP
-				#ifdef DUMP_NS
-				rawDataFile << robot->X() << " " << robot->Y() << " " << robot->Theta() << "\n";
-				filterDataFile << xPos << " " << yPos << " " << thetaPos << "\n";
-				#else
-				rawDataFile << robot->getWheelEncoder( RI_WHEEL_RIGHT ) << " " << robot->getWheelEncoder( RI_WHEEL_LEFT ) << "\n";
-				filterDataFile << rightDist << " " << leftDist << " " << xTotal << " " << yTotal << "\n";
-				#endif
-			#endif
-		}
-	} while(1);
-	*/
+	MoveTo( 70, 95 );
+	xEncCoord = 75;
+	yEncCoord = 90;
+	
+	TurnTo((float)320);
+	
+	MoveTo( 123, 154 );
+	xEncCoord = 123;
+	yEncCoord = 154;
 	
 	printf( "Stopped at %.3f ticks (%.3f inches)\n", yTotal, (yTotal/TICKS_PER_INCH) );
 	
