@@ -15,11 +15,20 @@ extern "C" {
 //#define FILEDUMP
 //#define DUMP_NS
 
+/******define some utility macros******/
+#define ABS(x) ((x)>0?(x):-(x))
+#define TORADIAN(x) ((float)(x*0.0174533))//turn degree to radian
+#define MINABS(x,y) (ABS(x)<ABS(y)?(x):(y))//return the one with lower absolute value
+#define TODEGREE(x) ((float)((x)*57.29578)) //turn radian into degree
+
 #define PI 3.14159265
 
 #define ANGLE_WHEEL_RIGHT 0.523598776
 #define ANGLE_WHEEL_LEFT 2.61799388
 #define ANGLE_WHEEL_REAR 1.57079633
+
+#define ACTION_TURN 0x101/*action flag pass to update function*/
+#define ACTION_MOVE 0x102/*action flag pass to update function*/
 
 #define TICKS_PER_INCH 5.5
 
@@ -33,12 +42,17 @@ int xEncCoord, yEncCoord;
 float yTotal;
 float thetaCorrection;
 int currentRoom;
+float aveWeightedDegree;
+
+float originDegree;
 
 filter *xFilter = NULL;
 filter *yFilter = NULL;
 filter *rightWheelFilter = NULL;
 filter *leftWheelFilter = NULL;
 filter *rearWheelFilter = NULL;
+
+
 
 kalmanFilter *kf = NULL;
 
@@ -70,6 +84,54 @@ float CorrectTheta( float oldTheta )
 			return oldTheta + thetaCorrection;
 	}
 }
+
+float NSDegreeToMyDegree(float oldD, int roomID){
+	float degree = oldD;
+	switch(roomID) {
+		case 2: //room 2
+			degree = 470 - oldD;
+			break;
+		case 3: //room3
+			degree = 265 - oldD;
+			break;
+		case 4: //room 4
+			degree = 381.5 - oldD-3;
+			break;
+		case 5: //room 5
+			degree = 260 - oldD;
+			break;
+		default:
+			//printf("room %d, Man, are you sure you are not in outer space!\n",roomID);
+			return 0;
+	}
+	return (float)(((int)degree)%360);
+}
+
+void updateNorthStar(int flag,int roomID){
+	int step = 0;
+	float degree;
+
+	if(flag==ACTION_TURN){
+		step = 0;
+		degree = 0;
+		do{
+			while(robot->update() != RI_RESP_SUCCESS) {
+				printf("Failed to update sensor information!\n");
+			}
+			degree += NSDegreeToMyDegree(TODEGREE(robot->Theta()),2);
+			
+			step++;
+			
+		}
+		while(step<10);
+
+		aveWeightedDegree = degree/10;
+	}
+
+	printf("updataNS: degree: %4.2f\n",aveWeightedDegree);
+
+}
+
 	
 // initialize filters and prime coord filters w/ 3 readings
 int InitializeFirFilters( RobotInterface *robot )
@@ -172,13 +234,20 @@ int SetOrigin()
 		robot->update();
 		xSum += FirFilter( xFilter, robot->X() );
 		ySum += FirFilter( yFilter, robot->Y() );
-		thetaSum += robot->Theta();
+		//thetaSum += robot->Theta();
 	}
 	
 	xNSOrigin = xSum /10;
 	yNSOrigin = ySum /10;
-	thetaCorrection = thetaSum /10;
+	//thetaCorrection = thetaSum /10;
 	
+	originDegree = 0;
+	for(int i=0;i<10;i++){
+		updateNorthStar(ACTION_TURN,1);
+		originDegree += aveWeightedDegree;
+	}
+	originDegree = originDegree/10;//setting origin degree
+
 	xEncCoord = 0;
 	yEncCoord = 0;
 
@@ -198,11 +267,85 @@ int RoomSwitch( float oldTheta, float newTheta )
 	return OK;
 }
 
-int TurnTo( float theta )
+int TurnTo( float target )
 {
 	float thetaCurrent, thetaSum;
+	float offset = 3;
+	float diff;//diff between current and target
+	//PID *pid = new PID();
+	bool multiple_sample = true;//indicate if we need to take multiple sample
+	int turn_speed = 8;
+	int turn_flag = RI_TURN_LEFT;//set initial turn flag to turn left
+
+
 	
-	printf("INSIDE TURNTO theta: %f\n", theta);
+	printf("INSIDE TURNTO theta: %f\n", target);
+	
+	do {
+
+		thetaCurrent =  aveWeightedDegree;
+		if(multiple_sample){//taking samples of current theta
+			/*thetaSum = 0;
+			for (int i=0; i<10; i++){
+				while(robot->update() != RI_RESP_SUCCESS) {//make 20degree turn
+					printf("Failed to update sensor information!\n");
+				}
+				thetaSum += CorrectTheta(robot->Theta());
+			}*/
+			updateNorthStar(ACTION_TURN,1);
+			thetaCurrent =  aveWeightedDegree;
+			
+		}
+		diff = MINABS(target-thetaCurrent, 360-thetaCurrent+target);//get diff between target and current
+
+
+		if(ABS(diff)<=offset)//break loop condition if diff is within a preset acceptable offset
+			break;
+
+		//if absolute value of diff >= 20
+		if(ABS(diff) >= 20) {
+			turn_flag = diff>0? RI_TURN_RIGHT_20DEG: RI_TURN_LEFT_20DEG;//set turn flag
+			turn_speed = 4;
+
+			if(ABS(diff)>=40)
+				multiple_sample = true;//diff is greater than 40, then we need more 20degree turn
+			else
+				multiple_sample = true;//diff between 20 and 40, we need one more 20degree turn
+
+			robot -> Move(turn_flag, turn_speed);
+			diff += (diff>0?-1:1)*20;//update diff
+		}
+		//absolute value of diff < 20
+		//doing adjustment
+		else{
+			multiple_sample = true;
+			turn_flag = diff>0? RI_TURN_RIGHT: RI_TURN_LEFT;
+			turn_speed = 6;
+
+			//update sensor
+			while(robot->update() != RI_RESP_SUCCESS) {
+				printf("Failed to update sensor information!\n");
+			}
+
+			robot -> Move(turn_flag, turn_speed);
+
+			while(robot->update() != RI_RESP_SUCCESS) {
+				printf("Failed to update sensor information!\n");
+			}
+			
+			if(!robot->IR_Detected()) {
+				robot -> Move(RI_STOP, turn_speed);
+			}
+
+		}
+		printf("target:%4.2f curr:%4.2f diff:%4.2F\n",target,thetaCurrent,diff);
+		
+
+	}
+	while(1);
+
+
+	/* old code
 	
 	robot->update();
 	
@@ -238,7 +381,7 @@ int TurnTo( float theta )
 			thetaCurrent = CorrectTheta( robot->Theta() );
 		}
 	}
-	
+	*/
 	return OK;
 }
 
@@ -368,11 +511,29 @@ int main(int argv, char **argc)
 	*/
 	
 	printf("Navigating to 1st waypoint...\n");
-	MoveTo( 0, 135 );
-	yEncCoord = 135;
 	
-	printf("Navigating to 2nd waypoint...\n");
-	MoveTo( 75, 90 );
+	TurnTo((float)135);
+	for(int i=0;i<20;i++){
+		updateNorthStar(ACTION_TURN,1);
+
+	}
+	MoveTo( 0, 30 );
+	for(int i=0;i<10;i++){
+		updateNorthStar(ACTION_TURN,1);
+	}
+	MoveTo( 0, 30 );
+	for(int i=0;i<10;i++){
+		updateNorthStar(ACTION_TURN,1);
+	}
+	MoveTo( 0, 30 );
+	//TurnTo((float)135);
+	//MoveTo(0,20);
+
+	//MoveTo( 0, 135 );
+	//yEncCoord = 135;
+	
+	//printf("Navigating to 2nd waypoint...\n");
+	//MoveTo( 75, 90 );
 	
 	/*
 	// Action loop
