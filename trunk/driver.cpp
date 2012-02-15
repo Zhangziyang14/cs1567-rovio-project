@@ -34,8 +34,8 @@ extern "C" {
 #define TICKS_PER_INCH 5.5
 
 #define NS_PER_INCH 124
-#define NS_X_ORIGIN -13160
-#define NS_Y_ORIGIN -1356
+#define NS_X_ORIGIN -13159.6
+#define NS_Y_ORIGIN -1355.9
 
 #define CORRECT_NS_X(x) (x - NS_X_ORIGIN) / NS_PER_INCH
 #define CORRECT_NS_Y(x) (x - NS_Y_ORIGIN) / NS_PER_INCH
@@ -165,6 +165,7 @@ int InitializeFirFilters( RobotInterface *robot )
 	return FAIL;
 }
 // initializes kalman filter to default values
+// IMPORTANT NOTE: NS X is same direction as Encoder Y, so NS X AND Y ARE REVERSED IN THE ARRAY
 int InitializeKalmanFilter( RobotInterface *robot )
 {
 	float *initPose = (float *)malloc(sizeof(float) * 3);
@@ -177,8 +178,8 @@ int InitializeKalmanFilter( RobotInterface *robot )
 
 	if ( robot->update() == RI_RESP_SUCCESS )
 	{
-		initPose[0] = FirFilter( xFilter, CORRECT_NS_X(robot->X()) );
-		initPose[1] = FirFilter( yFilter, CORRECT_NS_Y(robot->Y()) );
+		initPose[0] = FirFilter( yFilter, CORRECT_NS_Y(robot->Y()) );
+		initPose[1] = FirFilter( xFilter, CORRECT_NS_X(robot->X()) );
 		
 		for ( int i=0; i<10; i++ )
 		{
@@ -209,9 +210,11 @@ float *UpdateKalman()
 	
 	float x, y, theta;
 	
-	curPose[0] = FirFilter( xFilter, CORRECT_NS_X(robot->X()) );
-	curPose[1] = FirFilter( yFilter, CORRECT_NS_Y(robot->Y()) );
+	curPose[0] = FirFilter( yFilter, CORRECT_NS_Y(robot->Y()) );
+	curPose[1] = FirFilter( xFilter, CORRECT_NS_X(robot->X()) );
 	curPose[2] = TODEGREE( robot->Theta() );
+	
+	printf("X: %.4f Y: %.3f\n", CORRECT_NS_X((float) robot->X()), CORRECT_NS_Y((float) robot->Y()));
 	
 	x = WheelAverageX( robot->getWheelEncoder( RI_WHEEL_RIGHT), robot->getWheelEncoder( RI_WHEEL_LEFT ) ) / TICKS_PER_INCH;
 	y =  WheelAverageY( robot->getWheelEncoder( RI_WHEEL_RIGHT), robot->getWheelEncoder( RI_WHEEL_LEFT ) ) / TICKS_PER_INCH;

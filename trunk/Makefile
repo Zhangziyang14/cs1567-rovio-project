@@ -6,10 +6,10 @@ LIB_LINK=-lhighgui -lcv -lcxcore
 rovio: driver.o rovioKalmanFilter.o
 	g++ ${CFLAGS} -o rovio driver.o rovioKalmanFilter.o ${CPP_LIB_FLAGS} ${LIB_LINK}
 
-driver.o: driver.cpp kalman
+driver.o: driver.cpp
 	g++ ${CFLAGS} -c driver.cpp
 	
-rovioKalmanFilter.o: kalman/rovioKalmanFilter.c
+rovioKalmanFilter.o: kalman/rovioKalmanFilter.c kalman/kalmanFilterDef.h
 	gcc ${CFLAGS} -c kalman/rovioKalmanFilter.c
 
 clean:
