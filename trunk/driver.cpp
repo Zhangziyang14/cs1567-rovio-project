@@ -89,16 +89,16 @@ float NSDegreeToMyDegree(float oldD, int roomID){
 	float degree = oldD;
 	switch(roomID) {
 		case 2: //room 2
-			degree = 470 - oldD;
+			degree = 360+75 - oldD;
 			break;
 		case 3: //room3
-			degree = 265 - oldD;
+			degree = 360+1 - oldD;
 			break;
 		case 4: //room 4
-			degree = 381.5 - oldD-3;
+			degree = 360+1 - oldD;
 			break;
 		case 5: //room 5
-			degree = 260 - oldD;
+			degree = 360+1 - oldD;
 			break;
 		default:
 			//printf("room %d, Man, are you sure you are not in outer space!\n",roomID);
@@ -110,25 +110,29 @@ float NSDegreeToMyDegree(float oldD, int roomID){
 void updateNorthStar(int flag,int roomID){
 	int step = 0;
 	float degree;
+	float rawD;
 
 	if(flag==ACTION_TURN){
 		step = 0;
 		degree = 0;
+		rawD = 0;
 		do{
 			while(robot->update() != RI_RESP_SUCCESS) {
 				printf("Failed to update sensor information!\n");
 			}
-			degree += NSDegreeToMyDegree(TODEGREE(robot->Theta()),2);
-			
+			if(step>13){
+				degree += NSDegreeToMyDegree(TODEGREE(robot->Theta()),2);
+				rawD += TODEGREE(robot->Theta());
+			}
 			step++;
 			
 		}
-		while(step<10);
+		while(step<20);
 
-		aveWeightedDegree = degree/10;
+		aveWeightedDegree = degree/6;
 	}
 
-	printf("updataNS: degree: %4.2f\n",aveWeightedDegree);
+	//printf("updataNS: degree: %4.2f raw:%4.2f\n",aveWeightedDegree,rawD/10);
 
 }
 
@@ -283,21 +287,14 @@ int TurnTo( float target )
 	
 	do {
 
-		thetaCurrent =  aveWeightedDegree;
+		//thetaCurrent =  aveWeightedDegree;
 		if(multiple_sample){//taking samples of current theta
-			/*thetaSum = 0;
-			for (int i=0; i<10; i++){
-				while(robot->update() != RI_RESP_SUCCESS) {//make 20degree turn
-					printf("Failed to update sensor information!\n");
-				}
-				thetaSum += CorrectTheta(robot->Theta());
-			}*/
 			updateNorthStar(ACTION_TURN,1);
 			thetaCurrent =  aveWeightedDegree;
-			
-		}
-		diff = MINABS(target-thetaCurrent, 360-thetaCurrent+target);//get diff between target and current
+			diff = MINABS(target-thetaCurrent, 360-thetaCurrent+target);//get diff between target and current
 
+		}
+		
 
 		if(ABS(diff)<=offset)//break loop condition if diff is within a preset acceptable offset
 			break;
@@ -308,7 +305,7 @@ int TurnTo( float target )
 			turn_speed = 4;
 
 			if(ABS(diff)>=40)
-				multiple_sample = true;//diff is greater than 40, then we need more 20degree turn
+				multiple_sample = false;//diff is greater than 40, then we need more 20degree turn
 			else
 				multiple_sample = true;//diff between 20 and 40, we need one more 20degree turn
 
@@ -512,20 +509,20 @@ int main(int argv, char **argc)
 	
 	printf("Navigating to 1st waypoint...\n");
 	
-	TurnTo((float)135);
-	for(int i=0;i<20;i++){
-		updateNorthStar(ACTION_TURN,1);
+	TurnTo((float)5);
+	//for(int i=0;i<20;i++){
+	//	updateNorthStar(ACTION_TURN,1);
 
-	}
-	MoveTo( 0, 30 );
-	for(int i=0;i<10;i++){
-		updateNorthStar(ACTION_TURN,1);
-	}
-	MoveTo( 0, 30 );
-	for(int i=0;i<10;i++){
-		updateNorthStar(ACTION_TURN,1);
-	}
-	MoveTo( 0, 30 );
+	//}
+	//MoveTo( 0, 30 );
+	//for(int i=0;i<10;i++){
+	//	updateNorthStar(ACTION_TURN,1);
+	//}
+	//MoveTo( 0, 30 );
+	//for(int i=0;i<10;i++){
+	//	updateNorthStar(ACTION_TURN,1);
+	//}
+	//MoveTo( 0, 30 );
 	//TurnTo((float)135);
 	//MoveTo(0,20);
 
