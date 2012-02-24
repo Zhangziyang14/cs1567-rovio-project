@@ -14,10 +14,9 @@ extern "C" {
 	#include "kalman/kalmanFilterDef.h"
 }
 
-//#define FILEDUMP
-//#define DUMP_NS
+#define FILEDUMP
 
-//#define DEBUG
+#define DEBUG
 #define FAILED(x) ((x) == OK) ? false : true
 
 /******define CONSTANTS******/
@@ -28,8 +27,6 @@ extern "C" {
 
 /******define GLOBALS******/
 float *predicted;
-float currentY, currentX;
-float currDist = 0;
 
 int currentRoom;
 float currNSX = 0, currNSY = 0, currNSTheta = 0;
@@ -52,8 +49,7 @@ RobotInterface *robot;
 
 
 #ifdef FILEDUMP
-std::ofstream rawDataFile;
-std::ofstream filterDataFile;
+std::ofstream dataFile;
 #endif
 
 	
@@ -104,8 +100,8 @@ int InitializeKalmanFilter( RobotInterface *robot )
 	firX = FirFilter(xFilter, robot->X());
 	firY = FirFilter(yFilter, robot->Y());
 	
-	initPose[0] = CorrectXtoCM( firX, 0, robot->RoomID() );
-	initPose[1] = CorrectYtoCM( firY, 0, robot->RoomID() );
+	initPose[0] = CorrectXtoCM( firX, robot->RoomID() );
+	initPose[1] = CorrectYtoCM( firY, robot->RoomID() );
 	
 	for ( int i=0; i<10; i++ )
 	{
@@ -115,9 +111,9 @@ int InitializeKalmanFilter( RobotInterface *robot )
 	
 	initPose[2] = thetaSum / 10;
 	
-	velocity[0] = 1.0;
-	velocity[1] = 1.0;
-	velocity[2] = 1.0;
+	velocity[0] = 0.0;
+	velocity[1] = 0.0;
+	velocity[2] = 0.0;
 	
 	#ifdef DEBUG
 		printf( "Initial Pose:\nX: %.3f Y: %.3f Theta(Rad): %.3f Theta(Deg): %.3f\n", initPose[0], initPose[1], initPose[2], TODEGREE(initPose[2]) );
@@ -139,10 +135,18 @@ float *UpdateKalman( )
 	
 	float rightEncData, leftEncData, rearEncData, yMovement, xEncCoord, yEncCoord, encTheta;
 	
-	// correct NS data to cm-based coordinates
-	curPose[0] = CorrectXtoCM( FirFilter(xFilter, robot->X()), currDist, robot->RoomID() );	//NS X
-	curPose[1] = CorrectYtoCM( FirFilter(yFilter, robot->Y()), currDist, robot->RoomID() );	//NS Y
-	curPose[2] = CorrectTheta( robot->Theta(), robot->RoomID() );							//NS Theta
+	// correct NS data to cm-based coordinates, flip x and y for odd-numbered rooms
+	if ( robot->RoomID() % 2 == 0 )
+	{
+		curPose[0] = CorrectXtoCM( FirFilter(xFilter, robot->X()), robot->RoomID() );	//NS X
+		curPose[1] = CorrectYtoCM( FirFilter(yFilter, robot->Y()), robot->RoomID() );	//NS Y
+	}
+	else
+	{
+		curPose[0] = CorrectYtoCM( FirFilter(yFilter, robot->Y()), robot->RoomID() );	//NS X
+		curPose[1] = CorrectXtoCM( FirFilter(xFilter, robot->X()), robot->RoomID() );	//NS Y
+	}
+	curPose[2] = CorrectTheta( robot->Theta(), robot->RoomID() );					//NS Theta
 	
 	// get wheel encoder data for this movement
 	rightEncData = FirFilter( rightFilter, robot->getWheelEncoder( RI_WHEEL_RIGHT) );
@@ -167,6 +171,10 @@ float *UpdateKalman( )
 	printf("NorthStar: X: %.4f Y: %.3f Theta(Rad): %.3f Theta(Deg): %.3f\n", curPose[0], curPose[1], curPose[2], TODEGREE(curPose[2]) );
 	printf("Wheel Encoder: X: %.3f Y: %.3f Theta(Rad): %.3f Theta(Deg): %.3f\n", curWheelEnc[0], curWheelEnc[1], curWheelEnc[2], TODEGREE(curWheelEnc[2]) );
 	printf("Predicted: X: %.3f Y: %.3f Theta(Rad): %.3f Theta(Deg): %.3f\n", predicted[0], predicted[1], predicted[2], TODEGREE(predicted[2]));
+	#endif
+	
+	#ifdef FILEDUMP
+	dataFile << robot->RoomID() <<" "<< curPose[0] <<" "<< curPose[1] <<" "<< TODEGREE(curPose[2]) <<"\n"; 
 	#endif
 	
 	free(curPose);
@@ -253,7 +261,7 @@ void updateWheelEncoder(int flag, float currentTheta)
 }
 */
 
-int TurnTo2(float target, float margin)
+int TurnTo(float target, float margin)
 {
 	float thetaCurrent, thetaSum;
 	float offset = margin;
@@ -323,21 +331,18 @@ int TurnTo2(float target, float margin)
 	}
 	while(1);
 	
+	// reset kalman velocity
+	vel[2] = 0;
+	rovioKalmanFilterSetVelocity( kf, vel );
+	robot->update();
+	UpdateKalman();
+	
 	free(vel);
 
 	return OK;
 }
 
 /* DEPRECATED
-int TurnTo(float targetTheta)
-{	
-	TurnTo2(TODEGREE(targetTheta), 10);
-	
-	UpdateKalman();
-	
-	return OK;
-}
-
 void MoveToXY(float targetX, float targetY, float margin){
 	static int runnum = 1;    
 	//PID *pid = new PID();	
@@ -461,71 +466,52 @@ void MoveToXY(float targetX, float targetY, float margin){
 }
 */
 
-void TurnTo3( float targetTheta, float margin )
+void MoveTo( float targetX, float targetY )
 {
-	int direction, turnSpeed;
-	float diff;
-	
-	int i = 0;
+	float targetTheta, targetDist;
+	float prevX, prevY;
+	int speed;
 	
 	float *vel = (float *)calloc(3, sizeof(float));
 	
-	diff = fmod( (TODEGREE(predicted[2]) + 180 - TODEGREE(targetTheta)), (float)(360) ) - 180; 
-	direction = RI_TURN_RIGHT;
-	turnSpeed = 6;
-	
-	// set kalman theta velocity accordingly
-	vel[2] = turnSpeed;
-	rovioKalmanFilterSetVelocity(kf, vel);	
-	
-	printf("%d: DIFF: %.3f\n", robot->RoomID(), diff);
-	
-	// turn at normal speed until w/in 60 of target
-	while( abs(diff) >= 60)
-	{
-		robot->Move( direction, turnSpeed );
-		
-		SIGNAL_CHECK
-		
-		robot->update();
-		UpdateKalman();
-		
-		diff = fmod( (TODEGREE(predicted[2]) + 180 - TODEGREE(targetTheta)), (float)(360) ) - 180; 
-		printf("%d: DIFF: %.3f\n", robot->RoomID(), diff);
-	}
-	
-	// fine-grained turn to target
-	while( abs(diff) >= margin )
-	{			
-		turnSpeed = 8;
-		
-		// set kalman theta velocity accordingly
-		vel[2] = turnSpeed;
-		rovioKalmanFilterSetVelocity(kf, vel);	
-	
-		robot->Move( direction, turnSpeed );
-		
-		SIGNAL_CHECK
-		
-		robot->update();
-		UpdateKalman();
-		
-		diff = fmod( (TODEGREE(predicted[2]) + 180 - TODEGREE(targetTheta)), (float)(360) ); 
-		printf("%d: DIFF: %.3f\n", robot->RoomID(), diff);
-	}
-	
-	printf("Done Turning! Theta(Rad): %.3f Theta(Deg): %.3f\n", robot->Theta(), TODEGREE(robot->Theta()) );
-}
-
-void MoveTo( float targetX, float targetY )
-{
-	float targetTheta;
+	//get intial kalman prediction
+	UpdateKalman();
 	
 	//determine proper angle for path
-	targetTheta = atan2( (targetY - currentY), (targetX - currentX) );
+	targetTheta = atan2( (targetY - predicted[1]), (targetX - predicted[0]) );
+	targetDist = GetDistance(predicted[0], targetX, predicted[1], targetY);
 	
-	printf("Turning to (%.1f, %.1f) with theta %.3f\n", targetX, targetY, TODEGREE(targetTheta));
-	TurnTo2( TODEGREE(targetTheta), 10 );
+	printf("Traveling %.3fcm using theta %.3f\n", targetDist, TODEGREE(targetTheta));
+	TurnTo( TODEGREE(targetTheta), 5 );
+	
+	printf("Moving!\n");
+	while(currDist <= targetDist)
+	{
+		// get x & y before move
+		prevX = predicted[0];
+		prevY = predicted[1];
+		
+		robot->Move( RI_MOVE_FORWARD, speed );
+		
+		// update kalman
+		vel[1] = speed;
+		rovioKalmanFilterSetVelocity( kf, vel );
+		robot->update();
+		UpdateKalman();
+		
+		// update current distance
+		currDist += GetDistance(prevX, predicted[0], prevY, predicted[1]);
+		
+		printf("currDist: %.3f target: %.3f\n", currDist, targetDist);
+	}
+	
+	// reset kalman velocity
+	vel[1] = 0;
+	rovioKalmanFilterSetVelocity( kf, vel );
+	robot->update();
+	UpdateKalman();
+	
+	free(vel);
 }
 
 // handle ctrl + c
@@ -536,8 +522,7 @@ void QuitHandler( int s )
 	delete(robot);
 	
 	#ifdef FILEDUMP
-	rawDataFile.close();
-	filterDataFile.close();
+	dataFile.close();
 	#endif
 	
 	exit(-1);
@@ -565,22 +550,16 @@ int main(int argv, char **argc)
 	InitializeKalmanFilter( robot );
 	
 	#ifdef FILEDUMP
-	rawDataFile.open("data/rawData.txt");
-	filterDataFile.open("data/filterData.txt");
+	dataFile.open("data/data.txt");
 	#endif
 	
-	// set x y origin
-	currentX = 0;
-	currentY = 0;
-	
-	MoveTo( -20, -158 );
+	MoveTo( -20, 158 );
 	
 	// Clean up
 	delete(robot);
 	
 	#ifdef FILEDUMP
-	rawDataFile.close();
-	filterDataFile.close();
+	dataFile.close();
 	#endif
 	
 	return 0;

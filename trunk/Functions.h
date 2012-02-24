@@ -13,13 +13,13 @@
 #define SIN 0.5                    // sin(30) and sin(150).
 #define PI 3.1415926
 #define DIAMETER 29
-#define TODEGREE(x) ((float)((x)*57.29578) + 180) //turn theta into degree
+#define TODEGREE(x) ((float)((x+PI)*57.29578)) //turn theta into degree
 #define ABS(x) ((x)>0?(x):-(x))
 #define TORADIAN(x) ((float)(x*0.0174533) - PI) //turn degree to radian
 #define MINABS(x,y) (ABS(x)<ABS(y)?(x):(y))//return the one with lower absolute value
 #define SIGNAL_CHECK while(robot->update()!=RI_RESP_SUCCESS){printf("Failed to updated sensor information\n");}
 
-#define NS_PER_CM 20.5
+#define NS_PER_CM 20
 #define TICKS_PER_CM 1.8
 
 #define ANGLE_WHEEL_RIGHT 0.523598776
@@ -28,10 +28,13 @@
 
 // the values in these arrays correspond to the x-y correction values for a given room
 // e.g. xCorrections[2] will give the correction factor for the x coordinate in room 2
-float xCorrections[6] = {0, 0, -0.0876, 0.9442, 0, 0};
-float yCorrections[6] = {0, 0, -0.3536, 0.972, 0, 0};
+// NOTE: odd-numbered rooms will have their x and y coords reversed
+float xCorrections[6] = {0, 0, -0.0876, -0.2035, 0, 0};
+float yCorrections[6] = {0, 0, -0.3536, -0.1758, 0, 0};
 float xOrigins[6] = {0, 0, -11000, 0, 0, 0};
 float yOrigins[6] = {0, 0, -2300, 0, 0, 0};
+
+float currDist = 0;
 
 
 // returns average of computed left and right encoder x-axis motion
@@ -54,62 +57,15 @@ float WheelAverageY( float rightEncoder, float leftEncoder )
 	return (rightFinal + leftFinal) / 2;
 }
 
-
-float wheelMovedY(float rightWheel, float leftWheel, float rearWheel) {
-	float x;
-	if(rightWheel!=0 && leftWheel!=0 && rearWheel==0)//forward
-		x = ((rightWheel * SIN) + (leftWheel * SIN))/2;
-	else if(rightWheel!=0 && leftWheel==0) //
-		x = ((rightWheel * SIN) + rearWheel)/2;
-	else if(rightWheel==0 && leftWheel!=0)
-		x = ((leftWheel * SIN) + rearWheel)/2;
-	else
-		x = rearWheel;
-	return x;
-}
-
-float wheelMovedX(float rightWheel, float leftWheel) {
-        float y;
- 
-        if (rightWheel > 0 && leftWheel > 0) {
-           y = ((rightWheel * COS_R) + (leftWheel * COS_L)) / 2;
-		   //printf("wheelMoveX: %4.2f\n",y);
-        }
-        else if (rightWheel == 0 && leftWheel > 0) {
-           y = leftWheel * COS_L;
-        }
-        else if (rightWheel > 0 && leftWheel == 0) {
-           y = rightWheel * COS_R;
-        }
-        else {
-           y = 0;
-		   //printf("000wheelMoveX\n");
-        }
- 
-        return y;
-} 
- 
-/**
- *
- */
-float wheelMovedTheta(int rearWheel, float curWheelTheta) {
-        float t;
- 
-        t = curWheelTheta + (rearWheel / (PI * DIAMETER));
- 
-        return t;
-}
-
-
 float CorrectTheta(float oldTheta, int roomID){
 	float newTheta;
 	
 	switch(roomID) {
 		case 2: //room 2
-			newTheta = 360+262 - TODEGREE(oldTheta);
+			newTheta = 360+255 - TODEGREE(oldTheta);
 			break;
 		case 3: //room3
-			newTheta = 360+6 - TODEGREE(oldTheta);
+			newTheta = 360+180 - TODEGREE(oldTheta);
 			break;
 		case 4: //room 4
 			newTheta = 360+275 - TODEGREE(oldTheta);
@@ -125,29 +81,33 @@ float CorrectTheta(float oldTheta, int roomID){
 	return TORADIAN(fmod( newTheta, (float)360 ));
 }
 
-
-// gets distance from current and previous x and y coordinates
-float GetDistance( float prevX, float curX, float prevY, float curY )
-{
-	return sqrt( pow((curX - prevX), 2) + pow((curY - prevY), 2) );
-}
-
 // corrects the skew in X NS coords and converts to centimeters
-float CorrectXtoCM( float xCoord, float distance, int roomID )
+float CorrectXtoCM( float xCoord, int roomID )
 {
 	float correctedX, translatedX;
-	correctedX = xCoord - ( distance * xCorrections[roomID] );
+	correctedX = xCoord - ( currDist * xCorrections[roomID] );
 	translatedX = correctedX - xOrigins[roomID];
 	return translatedX / NS_PER_CM;
 }
 
 // corrects the skew in Y NS coords and converts to centimeters
-float CorrectYtoCM( float yCoord, float distance, int roomID )
+float CorrectYtoCM( float yCoord, int roomID )
 {
 	float correctedY, translatedY;
-	correctedY = yCoord - ( distance * yCorrections[roomID] );
+	correctedY = yCoord - ( currDist * yCorrections[roomID] );
 	translatedY = correctedY - yOrigins[roomID];
 	return translatedY / NS_PER_CM;
+}
+
+// gets distance from current and previous x and y coordinates
+float GetDistance( float prevX, float curX, float prevY, float curY )
+{
+	float deltaX, deltaY;
+	
+	deltaX = prevX - curX;
+	deltaY = prevY - curY;
+	
+	return sqrt( pow((deltaX), 2) + pow((deltaY), 2) );
 }
 
 #endif
