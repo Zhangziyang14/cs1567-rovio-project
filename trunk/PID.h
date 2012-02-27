@@ -22,7 +22,7 @@ typedef struct
     float KD;
 } PID;
 
-PID *PID_Creat(){
+PID *PID_Create(){
     int i;
     
     PID *p = (PID *) malloc(sizeof(PID));
@@ -62,6 +62,10 @@ float PID_control(PID *p, float error){
     }
     
 	// The current error.
+	
+	printf("currIndex: %d\n", p->currIndex);
+	printf("err_PID: %d\n", p->err_PID[p->currIndex]);
+	
 	p->err_PID[p->currIndex] = error;
     
 	// Calculate  the sum of the last five errors.

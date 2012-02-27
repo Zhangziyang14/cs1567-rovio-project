@@ -10,9 +10,9 @@
 
 typedef struct 
 {
-  float coefficients[TAPS];
+  float *coefficients;
   unsigned  next_sample;
-  float samples[TAPS];
+  float *samples;
 } filter;
 
 /* firFilterCreate()
@@ -22,6 +22,9 @@ filter *FirFilterCreate()
 {
   int i;
   filter *f = (filter *) malloc(sizeof(filter));
+  f->coefficients = (float *)calloc(TAPS, sizeof(float));
+  f->samples = (float *)calloc(TAPS, sizeof(float));
+  
   for (i=0; i<TAPS; i++) {
     f->samples[i] = 0;
     f->coefficients[i] = 1. /(float) TAPS; // user must set coef's
