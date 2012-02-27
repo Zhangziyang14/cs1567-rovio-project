@@ -9,6 +9,7 @@
 #include <fstream>
 
 #include "fir.h"
+#include "PID.h"
 #include "Functions.h"
 extern "C" {
 	#include "kalman/kalmanFilterDef.h"
