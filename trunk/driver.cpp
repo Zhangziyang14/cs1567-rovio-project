@@ -29,17 +29,6 @@ extern "C" {
 /******define GLOBALS******/
 float *predicted;
 
-int currentRoom;
-float currNSX = 0, currNSY = 0, currNSTheta = 0;
-float prevNSX = 0, prevNSY = 0, prevNSTheta = 0;
-
-float prevWX = 0, prevWY = 0, prevWT = 0;
-float currWX = 0, currWY = 0, currWT = 0;
-float originDegree;
-
-float roomDegree;
-float roomTheta;
-
 filter *xFilter = NULL;
 filter *yFilter = NULL;
 filter *rightFilter = NULL;
@@ -157,7 +146,7 @@ float *UpdateKalman( )
 	
 	// use previous kalman filter values to determine new x y position
 	xEncCoord = predicted[0] + (yMovement * cos(predicted[2]));
-	yEncCoord = predicted[1] + (yMovement * sin(predicted[2]));
+	yEncCoord = predicted[1] + (yMovement * -sin(predicted[2]));
 	//encTheta = predicted[2] + ( ( rearEncData / 5.5 ) / TICKS_PER_CM );
 	encTheta = curPose[2];
 	//printf("REARENCDATA: %.3f ENCTHETA: %.3f PREDICTED[2]: %.3f\n", rearEncData, encTheta, predicted[2]);
@@ -184,109 +173,44 @@ float *UpdateKalman( )
 	return predicted;
 }
 
-/* DEPRECATED
-void updateNorthStar(int flag,int roomID)
+
+//Turn To the target degree
+void TurnTo(float target, float margin)
 {
-	
-	//update NS for TURN
-	if(flag==ACTION_TURN){
-		int step = 0;
-		float degree = 0;
-		float rawD = 0;
-		float myTheta=0;
-		do{
-			while(robot->update() != RI_RESP_SUCCESS) {
-				printf("Failed to update sensor information!\n");
-			}
-			if(step>13){
-				degree += CorrectTheta(robot->Theta(), robot->RoomID());
-				rawD += TODEGREE(robot->Theta());
-				myTheta += TORADIAN(CorrectTheta(robot->Theta(), robot->RoomID()));
-			}
-			step++;
-			
-		}
-		while(step<20);
-
-		roomDegree = degree/6;
-		roomTheta = myTheta/6;
-
-		printf("@@myTheta:%4.2f\n",roomTheta);
-
-	}
-	//update NS for MOVE
-	else if(flag==ACTION_MOVE){
-		if(ACTION_MOVE == flag) {//it's a move update
-		}
-
-	}
-
-	//printf("updataNS: degree: %4.2f raw:%4.2f\n",TODEGREE(predicted[2]),rawD/10);
-
-}
-
-void updateWheelEncoder(int flag, float currentTheta)
-{
-	if(flag == ACTION_MOVE) {//it's a move update
-		float theta = currentTheta;
-		float coe = 0.40; //cm per unit 
-
-		float filterR =  FirFilter(rightFilter,robot->getWheelEncoder(RI_WHEEL_RIGHT));
-		float filterL =   FirFilter(leftFilter,robot->getWheelEncoder(RI_WHEEL_LEFT));
-		float filterB =   FirFilter(rearFilter,robot->getWheelEncoder(RI_WHEEL_REAR));
-
-		float moveX = wheelMovedX(filterR, filterL) * coe;//get x contribution after filter  
-		float moveY = wheelMovedY(filterR, filterL, filterB) * coe;//get y contribution after filter
-		//printf("--fr %5.2f, fl %5.2f, fb %5.2f degree:%4.2f\n",filterR,filterL,filterB,TODEGREE(theta));
-		//printf("---moveX:%5.2f, moveY:%5.2f\n", moveX, moveY);
-		prevWX = currWX;
-		prevWY = currWY;
-		moveX=0;
-		currWX += -sin(theta)*moveY+cos(theta)*moveX;
-		//currWY += cos(theta)*moveY-sin(theta)*moveX;
-		currWY += cos(theta)*moveY+sin(theta)*moveX;
-
-
-		printf("currWX:%4.2f, currWY:%4.2f\n",currWX,currWY);
-
-	}
-	else if(flag == ACTION_TURN){
-		float filterB =   FirFilter(rearFilter,robot->getWheelEncoder(RI_WHEEL_REAR));
-		float coeTurnWheel = 2.1159924;//wheel encoder coefficient turn tick into degrees
-		float deltaTheta = coeTurnWheel*filterB;	//calcualte estimate 
-		currWT += deltaTheta;
-
-		printf("currWT:%4.2f\n",currWX,currWY);
-	}
-
-}
-*/
-
-int TurnTo(float target, float margin)
-{
-	float thetaCurrent, thetaSum;
-	float offset = margin;
+	float thetaCurrent;
+	float offset = margin; 
 	float diff;//diff between current and target
-	//PID *pid = new PID();
+	PID *pid = PID_create();
 	bool multiple_sample = true;//indicate if we need to take multiple sample
 	int turn_speed = 8;
 	int turn_flag = RI_TURN_LEFT;//set initial turn flag to turn left
-	
-	float *vel = (float *)calloc(3, sizeof(float));
+    float pid_val; //pid value
+	float *vel = (float *)calloc(3, sizeof(float)); // velocity array
 	
 	do {
-		thetaCurrent = TODEGREE(predicted[2]);
-		diff = MINABS(target-thetaCurrent, 360-thetaCurrent+target);//get diff between target and current
+        // data sample collecting
+        if(multiple_sample){
+            // update kalman
+            vel[2] = turn_speed;
+            rovioKalmanFilterSetVelocity( kf, vel );
+            SIGNAL_CHECK
+            UpdateKalman();
+            thetaCurrent = TODEGREE(predicted[2]);
 		
-		printf("-1target:%4.2f curr:%4.2f diff:%4.2F\n",target,thetaCurrent,diff);
-
-		if(ABS(diff)<=offset)//break loop condition if diff is within a preset acceptable offset
+            diff = MINABS(target-thetaCurrent, 360-thetaCurrent+target);//get diff between target and current
+            printf("-1target:%4.2f curr:%4.2f diff:%4.2F\n",target,thetaCurrent,diff);
+        }
+        //PID control
+        pid_val = PID_control(pid,diff);
+        
+        //break loop condition if diff is within a preset acceptable offset
+		if(ABS(diff)<=offset)
 			break;
 
 		//if absolute value of diff >= 20
 		if(ABS(diff) >= 20) {
 			turn_flag = diff>0? RI_TURN_RIGHT_20DEG: RI_TURN_LEFT_20DEG;//set turn flag
-			turn_speed = 4;
+			turn_speed = ABS(pid_val)>20?2:4;//set turn speed
 
 			if(ABS(diff)>=40)
 				multiple_sample = false;//diff is greater than 40, then we need more 20degree turn
@@ -296,11 +220,6 @@ int TurnTo(float target, float margin)
 			robot -> Move(turn_flag, turn_speed);
 			diff += (diff>0?-1:1)*20;//update diff
 			
-			// update kalman
-			vel[2] = turn_speed;
-			rovioKalmanFilterSetVelocity( kf, vel );
-			robot->update();
-			UpdateKalman();
 		}
 		//absolute value of diff < 20
 		//doing adjustment
@@ -314,12 +233,6 @@ int TurnTo(float target, float margin)
 
 			robot -> Move(turn_flag, turn_speed);
 
-			// update kalman
-			vel[2] = turn_speed;
-			rovioKalmanFilterSetVelocity( kf, vel );
-			robot->update();
-			UpdateKalman();
-			
 			SIGNAL_CHECK
 			
 			if(!robot->IR_Detected()) {
@@ -335,58 +248,68 @@ int TurnTo(float target, float margin)
 	// reset kalman velocity
 	vel[2] = 0;
 	rovioKalmanFilterSetVelocity( kf, vel );
-	robot->update();
 	UpdateKalman();
 	
 	free(vel);
 
-	return OK;
 }
 
-/* DEPRECATED
-void MoveToXY(float targetX, float targetY, float margin){
-	static int runnum = 1;    
-	//PID *pid = new PID();	
-	bool RoomChanged = false;    
+
+//TurnTo Wrapper
+void TurnTo(float target)
+{
+    TurnTo(target,3.0f);
+}
+
+//Move to x, y
+void MoveToXY(float targetX, float targetY, float margin){  
+	PID *pid = PID_create();   
 	float XYRange = sqrt(margin); 
 	float Xoffset=0;
 	float Yoffset=0;
 	float thetaOffset = TORADIAN(3);
 	bool NewTarget = false;    
-	float theta = predicted[2];
 	float disTravel;
 	float disoffset;
-	
+    float currX = predicted[0];
+    float currY = predicted[1];
+    float currTheta = predicted[2];
+    float *vel = (float *)calloc(3, sizeof(float));
+    float pid_val;
+    
 	//total distance we need to travel
-	float totalDistance = sqrt(pow(targetX-predicted[0],2)+
-						  pow(targetY-predicted[1],2));
-
-	float beginX = predicted[0], beginY = predicted[1];
+	float totalDistance = sqrt(pow(targetX-currX,2) + pow(targetY-currY,2));
+	float beginX = currX, beginY = currY;
 	int move_flag = RI_MOVE_FORWARD;
 	int move_speed = 1;//initial speed set to 1
 
-	do{
-		while(robot->update() != RI_RESP_SUCCESS) {
-			printf("Failed to update sensor information!\n");
-		}
-		// TODO handle room change
-		printf("**aveTheta:%4.2f MoveTo\n",predicted[2]);
-
-		updateWheelEncoder(ACTION_MOVE,theta);
-		updateWheelEncoder(ACTION_TURN,theta);
-
-		Xoffset = targetX - predicted[0];
-		Yoffset = targetY - predicted[1];
-		   
-		disTravel = sqrt(pow(beginX-predicted[0],2)+
-						  pow(beginY-predicted[1],2));//distance we travel so far
-
-		disoffset = (sqrt(pow(Xoffset,2)+pow(Yoffset,2)));//how far we still need to travel
-		
-		if(disTravel>totalDistance)//if travel distance > total distance then disoffset becomes negative
+	do{ 
+        // update kalman
+        vel[0] = move_speed * -sin(currTheta);
+        vel[1] = move_speed * cos(currTheta);
+        rovioKalmanFilterSetVelocity( kf, vel );
+        SIGNAL_CHECK
+        UpdateKalman();
+        
+        currX = predicted[0];
+        currY = predicted[1];
+        currTheta = predicted[2];
+        
+		Xoffset = targetX - currX;
+		Yoffset = targetY - currY;
+        
+        //distance we travel so far
+		disTravel = sqrt(pow(beginX-currX,2)+ pow(beginY-currY,2));
+		//how far we still need to travel
+        disoffset = (sqrt(pow(Xoffset,2)+pow(Yoffset,2)));
+		//if travel distance > total distance then disoffset becomes negative
+		if(disTravel>totalDistance){
 			disoffset = (-1)*disoffset;
-
-		printf(" offset: %6.2f, ",disoffset);
+        }
+        //PID control
+        pid_val = PID_control(pid,disoffset);
+    
+		printf(" offset: %6.2f, \n",disoffset);
 
 		//if distance offset is less than margin, done
 		if(disoffset <= margin) {
@@ -397,26 +320,25 @@ void MoveToXY(float targetX, float targetY, float margin){
 			NewTarget = true;//we dont need to check new target
 			break;
 		}
-
-		//we already reach targetX or targetY
-		if((ABS(Xoffset)<=XYRange || ABS(Yoffset)<=XYRange) && NewTarget==false) {
-			printf("\n-----------------check need for  new destination---------------\n");
-			NewTarget = true;            //we already check it before
+        
+		//If we already reach targetX or targetY
+		if((ABS(Xoffset)<=XYRange || ABS(Yoffset)<=XYRange) && NewTarget==false) {			
+            NewTarget = true;            //we already check it before
 
 			if(ABS(Xoffset)<=XYRange) {    //we get to targeX, but not target Y
 				if(Yoffset>0) {                    //current Y is too large, then we should face 270 degree
-					if(ABS(predicted[2]-TORADIAN(0))>thetaOffset){//if we are not facing 270 degree
+					if(ABS(currTheta-TORADIAN(0))>thetaOffset){//if we are not facing 270 degree
 						printf("----target %5.2f, %5.2f--------Im at %5.2f,%5.2f, need to face 270\n",
-							   targetX,targetY,predicted[0],predicted[1]);
+							   targetX,targetY,currX,currY);
 						TurnTo(0.0);
 						MoveToXY(targetX,targetY,margin);//move to a new destination
 						break;
 					}
 				}
 				else{
-					if(ABS(predicted[2]-TORADIAN(180))>thetaOffset){//if we are not facing 270 degree
+					if(ABS(currTheta-TORADIAN(180))>thetaOffset){//if we are not facing 270 degree
 						printf("----target %5.2f, %5.2f--------Im at %5.2f,%5.2f, need to face 270\n",
-							   targetX,targetY,predicted[0],predicted[1]);
+							   targetX,targetY,currX,currY);
 						TurnTo(180.0);
 						MoveToXY(targetX,targetY,margin);//move to a new destination
 						break;
@@ -426,9 +348,9 @@ void MoveToXY(float targetX, float targetY, float margin){
 			}
 			else if((ABS(Yoffset)<=XYRange)){
 				if(Xoffset>0) {  
-					if(ABS(predicted[2]-TORADIAN(270))>thetaOffset){//if we are not facing 270 degree
+					if(ABS(currTheta-TORADIAN(270))>thetaOffset){//if we are not facing 270 degree
 						printf("----target %5.2f, %5.2f--------Im at %5.2f,%5.2f, need to face 270\n",
-							   targetX,targetY,predicted[0],predicted[1]);
+							   targetX,targetY,currX,currY);
 						TurnTo((float)270.0);
 						MoveToXY(targetX,targetY,margin);//move to a new destination
 						break;
@@ -436,9 +358,9 @@ void MoveToXY(float targetX, float targetY, float margin){
 
 				}
 				else{
-					if(ABS(predicted[2]-TORADIAN(90))>thetaOffset){//if we are not facing 270 degree
+					if(ABS(currTheta-TORADIAN(90))>thetaOffset){//if we are not facing 270 degree
 						printf("----target %5.2f, %5.2f--------Im at %5.2f,%5.2f, need to face 270\n",
-							   targetX,targetY,predicted[0],predicted[1]);
+							   targetX,targetY,currX,currY);
 						TurnTo((float)90.0);
 						MoveToXY(targetX,targetY,margin);//move to a new destination
 						break;
@@ -449,6 +371,17 @@ void MoveToXY(float targetX, float targetY, float margin){
 
 
 		}
+        
+        if(pid_val<=50) {	//if pid value is less then 50
+			move_speed = 3;
+		}
+		else if(pid_val<100) {//if pid value is less then 100 and greater than 50
+			move_speed = 5;
+		}
+		else {//else set speed to 8
+			move_speed = 8;
+		}
+        
 
 		if(disoffset<0) {
 			move_flag = RI_MOVE_BACKWARD;
@@ -456,64 +389,25 @@ void MoveToXY(float targetX, float targetY, float margin){
 		else {
 			move_flag = RI_MOVE_FORWARD;
 		}
-
-		if(!robot->IR_Detected()) {//do the move 
+        
+        //do the move
+		if(!robot->IR_Detected()) { 
 			robot -> Move(move_flag, move_speed);
-			theta = predicted[2];
 		}
-
-
+        
 	}while(1);
-}
-*/
-
-void MoveTo( float targetX, float targetY )
-{
-	float targetTheta, targetDist;
-	float prevX, prevY;
-	int speed;
-	
-	float *vel = (float *)calloc(3, sizeof(float));
-	
-	//get intial kalman prediction
-	UpdateKalman();
-	
-	//determine proper angle for path
-	targetTheta = atan2( (targetY - predicted[1]), (targetX - predicted[0]) );
-	targetDist = GetDistance(predicted[0], targetX, predicted[1], targetY);
-	
-	printf("Traveling %.3fcm using theta %.3f\n", targetDist, TODEGREE(targetTheta));
-	TurnTo( TODEGREE(targetTheta), 5 );
-	
-	printf("Moving!\n");
-	while(currDist <= targetDist)
-	{
-		// get x & y before move
-		prevX = predicted[0];
-		prevY = predicted[1];
-		
-		robot->Move( RI_MOVE_FORWARD, speed );
-		
-		// update kalman
-		vel[1] = speed;
-		rovioKalmanFilterSetVelocity( kf, vel );
-		robot->update();
-		UpdateKalman();
-		
-		// update current distance
-		currDist += GetDistance(prevX, predicted[0], prevY, predicted[1]);
-		
-		printf("currDist: %.3f target: %.3f\n", currDist, targetDist);
-	}
-	
-	// reset kalman velocity
-	vel[1] = 0;
+    
+    // reset kalman velocity
+	vel[0] = 0;
+    vel[1] = 0;
 	rovioKalmanFilterSetVelocity( kf, vel );
-	robot->update();
 	UpdateKalman();
 	
+    free(pid);
 	free(vel);
 }
+//*/
+
 
 // handle ctrl + c
 void QuitHandler( int s )
@@ -528,6 +422,140 @@ void QuitHandler( int s )
 	
 	exit(-1);
 }
+
+
+//BEGIN: MARK FOR DELETE
+/* 
+ *
+ 
+ void updateNorthStar(int flag,int roomID)
+ {
+ 
+ //update NS for TURN
+ if(flag==ACTION_TURN){
+ int step = 0;
+ float degree = 0;
+ float rawD = 0;
+ float myTheta=0;
+ do{
+ while(robot->update() != RI_RESP_SUCCESS) {
+ printf("Failed to update sensor information!\n");
+ }
+ if(step>13){
+ degree += CorrectTheta(robot->Theta(), robot->RoomID());
+ rawD += TODEGREE(robot->Theta());
+ myTheta += TORADIAN(CorrectTheta(robot->Theta(), robot->RoomID()));
+ }
+ step++;
+ 
+ }
+ while(step<20);
+ 
+ roomDegree = degree/6;
+ roomTheta = myTheta/6;
+ 
+ printf("@@myTheta:%4.2f\n",roomTheta);
+ 
+ }
+ //update NS for MOVE
+ else if(flag==ACTION_MOVE){
+ if(ACTION_MOVE == flag) {//it's a move update
+ }
+ 
+ }
+ 
+ //printf("updataNS: degree: %4.2f raw:%4.2f\n",TODEGREE(predicted[2]),rawD/10);
+ 
+ }
+ 
+ void updateWheelEncoder(int flag, float currentTheta)
+ {
+ if(flag == ACTION_MOVE) {//it's a move update
+ float theta = currentTheta;
+ float coe = 0.40; //cm per unit 
+ 
+ float filterR =  FirFilter(rightFilter,robot->getWheelEncoder(RI_WHEEL_RIGHT));
+ float filterL =   FirFilter(leftFilter,robot->getWheelEncoder(RI_WHEEL_LEFT));
+ float filterB =   FirFilter(rearFilter,robot->getWheelEncoder(RI_WHEEL_REAR));
+ 
+ float moveX = wheelMovedX(filterR, filterL) * coe;//get x contribution after filter  
+ float moveY = wheelMovedY(filterR, filterL, filterB) * coe;//get y contribution after filter
+ //printf("--fr %5.2f, fl %5.2f, fb %5.2f degree:%4.2f\n",filterR,filterL,filterB,TODEGREE(theta));
+ //printf("---moveX:%5.2f, moveY:%5.2f\n", moveX, moveY);
+ prevWX = currWX;
+ prevWY = currWY;
+ moveX=0;
+ currWX += -sin(theta)*moveY+cos(theta)*moveX;
+ //currWY += cos(theta)*moveY-sin(theta)*moveX;
+ currWY += cos(theta)*moveY+sin(theta)*moveX;
+ 
+ 
+ printf("currWX:%4.2f, currWY:%4.2f\n",currWX,currWY);
+ 
+ }
+ else if(flag == ACTION_TURN){
+ float filterB =   FirFilter(rearFilter,robot->getWheelEncoder(RI_WHEEL_REAR));
+ float coeTurnWheel = 2.1159924;//wheel encoder coefficient turn tick into degrees
+ float deltaTheta = coeTurnWheel*filterB;	//calcualte estimate 
+ currWT += deltaTheta;
+ 
+ printf("currWT:%4.2f\n",currWX,currWY);
+ }
+ 
+ }
+ 
+ 
+ void MoveTo( float targetX, float targetY )
+ {
+ float targetTheta, targetDist;
+ float prevX, prevY;
+ int speed;
+ 
+ float *vel = (float *)calloc(3, sizeof(float));
+ 
+ //get intial kalman prediction
+ UpdateKalman();
+ 
+ //determine proper angle for path
+ targetTheta = atan2( (targetY - predicted[1]), (targetX - predicted[0]) );
+ targetDist = GetDistance(predicted[0], targetX, predicted[1], targetY);
+ 
+ printf("Traveling %.3fcm using theta %.3f\n", targetDist, TODEGREE(targetTheta));
+ TurnTo( TODEGREE(targetTheta), 5 );
+ 
+ printf("Moving!\n");
+ while(currDist <= targetDist)
+ {
+ // get x & y before move
+ prevX = predicted[0];
+ prevY = predicted[1];
+ 
+ robot->Move( RI_MOVE_FORWARD, speed );
+ 
+ // update kalman
+ vel[1] = speed;
+ rovioKalmanFilterSetVelocity( kf, vel );
+ robot->update();
+ UpdateKalman();
+ 
+ // update current distance
+ currDist += GetDistance(prevX, predicted[0], prevY, predicted[1]);
+ 
+ printf("currDist: %.3f target: %.3f\n", currDist, targetDist);
+ }
+ 
+ // reset kalman velocity
+ vel[1] = 0;
+ rovioKalmanFilterSetVelocity( kf, vel );
+ robot->update();
+ UpdateKalman();
+ 
+ free(vel);
+ }
+ 
+ 
+ //*/ 
+//END:   MARK FOR DELETE
 
 int main(int argv, char **argc)
 {
