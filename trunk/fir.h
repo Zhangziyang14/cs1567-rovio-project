@@ -10,9 +10,9 @@
 
 typedef struct 
 {
-  float *coefficients;
+  float *coefficients; 	//coefficients[TAPS]
   unsigned  next_sample;
-  float *samples;
+  float *samples;		//samples[TAPS]
 } filter;
 
 /* firFilterCreate()

@@ -19,7 +19,7 @@
 #define MINABS(x,y) (ABS(x)<ABS(y)?(x):(y))//return the one with lower absolute value
 #define SIGNAL_CHECK while(robot->update()!=RI_RESP_SUCCESS){printf("Failed to updated sensor information\n");}
 
-#define NS_PER_CM 20
+#define NS_PER_CM 50
 #define TICKS_PER_CM 1.8
 
 #define ANGLE_WHEEL_RIGHT 0.523598776
@@ -31,8 +31,8 @@
 // NOTE: odd-numbered rooms will have their x and y coords reversed
 float xCorrections[6] = {0, 0, -0.0876, -0.2035, 0, 0};
 float yCorrections[6] = {0, 0, -0.3536, -0.1758, 0, 0};
-float xOrigins[6] = {0, 0, -11000, 0, 0, 0};
-float yOrigins[6] = {0, 0, -2300, 0, 0, 0};
+float xOrigins[6] = {0, 0, -11000, -13000, 0, 0};
+float yOrigins[6] = {0, 0, -2300, -2050, 0, 0};
 
 float currDist = 0;
 
@@ -53,7 +53,6 @@ float WheelAverageY( float rightEncoder, float leftEncoder )
 	float rightFinal, leftFinal;
 	rightFinal = rightEncoder * sin( ANGLE_WHEEL_RIGHT );
 	leftFinal = leftEncoder * sin( ANGLE_WHEEL_LEFT );
-	//printf( "WheelAverageY():\nrightFinal: %.3f leftFinal: %.3f\n", rightFinal, leftFinal );
 	return (rightFinal + leftFinal) / 2;
 }
 

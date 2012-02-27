@@ -87,9 +87,11 @@ int InitializeKalmanFilter( RobotInterface *robot )
 	
 	SIGNAL_CHECK
 	
+	// acquire fir-filtered x/y vals
 	firX = FirFilter(xFilter, robot->X());
 	firY = FirFilter(yFilter, robot->Y());
 	
+	// correct x/y
 	initPose[0] = CorrectXtoCM( firX, robot->RoomID() );
 	initPose[1] = CorrectYtoCM( firY, robot->RoomID() );
 	
@@ -154,7 +156,7 @@ float *UpdateKalman( )
 		}
 	}
 		
-	curPose[2] = CorrectTheta( robot->Theta(), robot->RoomID() );					//NS Theta
+	curPose[2] = CorrectTheta( robot->Theta(), robot->RoomID() );	//NS Theta
 	
 	// get wheel encoder data for this movement
 	rightEncData = FirFilter( rightFilter, robot->getWheelEncoder( RI_WHEEL_RIGHT) );
@@ -165,9 +167,7 @@ float *UpdateKalman( )
 	// use previous kalman filter values to determine new x y position
 	xEncCoord = predicted[0] + (yMovement * cos(predicted[2]));
 	yEncCoord = predicted[1] + (yMovement * -sin(predicted[2]));
-	//encTheta = predicted[2] + ( ( rearEncData / 5.5 ) / TICKS_PER_CM );
-	encTheta = curPose[2];
-	//printf("REARENCDATA: %.3f ENCTHETA: %.3f PREDICTED[2]: %.3f\n", rearEncData, encTheta, predicted[2]);
+	encTheta = predicted[2] + ( ( rearEncData / 5.5 ) / TICKS_PER_CM );
 	
 	curWheelEnc[0] = xEncCoord; 		// Wheel Encoder X position
 	curWheelEnc[1] = yEncCoord; 		// Wheel Encoder Y position
@@ -190,7 +190,6 @@ float *UpdateKalman( )
 	
 	return predicted;
 }
-
 
 //Turn To the target degree
 void TurnTo(float target, float margin)
@@ -271,7 +270,6 @@ void TurnTo(float target, float margin)
 	free(vel);
 
 }
-
 
 //TurnTo Wrapper
 void TurnTo(float target)
@@ -424,8 +422,6 @@ void MoveToXY(float targetX, float targetY, float margin){
     free(pid);
 	free(vel);
 }
-//*/
-
 
 // handle ctrl + c
 void QuitHandler( int s )

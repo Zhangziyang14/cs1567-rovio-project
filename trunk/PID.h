@@ -11,7 +11,7 @@
 typedef struct 
 {
     bool bInit;
-    float err_PID[5];
+    float *err_PID; // err_PID[5]
     float vel_PID;
     
     int currIndex;
@@ -26,6 +26,7 @@ PID *PID_Create(){
     int i;
     
     PID *p = (PID *) malloc(sizeof(PID));
+	p->err_PID = (float *)calloc(5, sizeof(float));
     p->KP = 0.5;
     p->KI = 0.05;
     p->KD = 1.0;
@@ -35,6 +36,8 @@ PID *PID_Create(){
     for (i=0; i<5; i++) {
         p->err_PID[i] = 0.0f;
     }
+	
+	return p;
     
 }
 
@@ -62,9 +65,6 @@ float PID_control(PID *p, float error){
     }
     
 	// The current error.
-	
-	printf("currIndex: %d\n", p->currIndex);
-	printf("err_PID: %d\n", p->err_PID[p->currIndex]);
 	
 	p->err_PID[p->currIndex] = error;
     
