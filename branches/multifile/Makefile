@@ -3,13 +3,16 @@ LIB_FLAGS=-L. -lrobot_if
 CPP_LIB_FLAGS=${LIB_FLAGS} -lrobot_if++
 LIB_LINK=-lhighgui -lcv -lcxcore
 
-rovio: Fir.o driver.o rovioKalmanFilter.o
-	g++ ${CFLAGS} -o rovio Fir.o driver.o rovioKalmanFilter.o ${CPP_LIB_FLAGS} ${LIB_LINK}
+rovio: Fir.o PID.o driver.o rovioKalmanFilter.o
+	g++ ${CFLAGS} -o rovio Fir.o PID.o driver.o rovioKalmanFilter.o ${CPP_LIB_FLAGS} ${LIB_LINK}
 	
 Fir.o: Fir.cpp Fir.h
 	g++ ${CFLAGS} -c Fir.cpp
 	
-driver.o: driver.cpp Functions.h PID.h
+PID.o: PID.cpp PID.h
+	g++ ${CFLAGS} -c PID.cpp
+	
+driver.o: driver.cpp Functions.h
 	g++ ${CFLAGS} -c driver.cpp
 	
 rovioKalmanFilter.o: kalman/rovioKalmanFilter.c kalman/kalmanFilterDef.h

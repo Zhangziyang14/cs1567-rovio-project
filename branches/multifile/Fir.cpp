@@ -16,8 +16,8 @@ Fir::Fir()
 {
 	for (int i=0; i<TAPS; i++)
 	{
-		samples[i] = 0;
-		coefficients[i] = 1. /(float) TAPS; // user must set coef's
+		samples.push_back(0);
+		coefficients.push_back(1. /(float) TAPS); // user must set coef's
 	}
 	
 	next_sample = 0;

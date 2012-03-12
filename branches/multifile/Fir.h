@@ -1,3 +1,6 @@
+#ifndef _FIR_H_
+#define _FIR_H_
+
 /** * * * * * * * * * * * * * * * * * * * * * * *
 * Fir.h											*
 * simple fir filter code						*
@@ -24,3 +27,5 @@ private:
   vector<float>	samples;		//samples[TAPS]
   unsigned  next_sample;
 };
+
+#endif
