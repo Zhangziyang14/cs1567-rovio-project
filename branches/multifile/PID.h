@@ -4,7 +4,7 @@
 /** * * * * * * * * * * * * * * * * * * * * *
 * PID.h										*
 * Created: 3/12/2012						*
-* Authors: CJ McAllister, Brendan Liu		* 
+* Authors: CJ McAllister, Brendan Liu		*
 *											*
 * Declares functions for use in PID control	*
 * * * * * * * * * * * * * * * * * * * * * * */
