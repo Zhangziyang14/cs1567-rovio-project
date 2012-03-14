@@ -20,7 +20,7 @@ PID::PID()
     bInit = false;
 	
     for (int i=0; i<5; i++) {
-        err_PID.push_back(0.0f);
+        err_PID[i]=0.0f;
     }
 }
 

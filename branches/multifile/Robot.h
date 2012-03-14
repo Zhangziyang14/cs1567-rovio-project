@@ -39,7 +39,7 @@ protected:
     int roomID;
     
 public:
-	Robot();
+	Robot(string);
 	~Robot();
 	
     void MoveTo(float targetX, float targetY);
@@ -51,8 +51,8 @@ private:
     void NS_Rotate(int room);
     void NS_Scale();
     void NS_Align(int room);
-    void updateNS();
-    void updateWE();
+    void updateNS(int flag);
+    void updateWE(int flag);
     void updateKalman();
     float CorrectTheta(float old, int roomID);
 };

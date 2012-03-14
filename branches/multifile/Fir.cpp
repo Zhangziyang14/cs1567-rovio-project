@@ -65,16 +65,16 @@ float Fir::getValue(float val)
 	return sum;
 }
 
-void Filter::initialize(float first) {
+void Fir::initialize(float first) {
     int i;
     
     initialized = true;
     
-    for (i = 0; i < taps; i++) {
+    for (i = 0; i < TAPS; i++) {
         samples[i] = first;
     }
 }
 
-void Filter::reset(void) {
+void Fir::reset(void) {
     initialized = false;
 }

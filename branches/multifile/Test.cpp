@@ -17,10 +17,7 @@ using namespace std;
 int main(int argv, char **argc) {
  
 	// Make sure we have a valid command line argument.
-	if(argv <= 1) {
-		cout << "Usage: robot_test <address of robot>" << std::endl;
-        exit(-1);
-	}
+
  
 
  
