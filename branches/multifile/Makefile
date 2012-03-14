@@ -16,4 +16,4 @@ ${PROGRAM}: ${PROGRAM}.cpp
 
 clean:
 	rm -rf *.o
-	rm -rf robot_test_example++
+	rm -rf ${PROGRAM}
