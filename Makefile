@@ -2,18 +2,17 @@ CFLAGS=-ggdb -g3
 LIB_FLAGS=-L. -lrobot_if
 CPP_LIB_FLAGS=${LIB_FLAGS} -lrobot_if++
 LIB_LINK=-lhighgui -lcv -lcxcore
-PROGRAM=Test
 
-all: ${PROGRAM}
+rovio: driver.o rovioKalmanFilter.o
+	g++ ${CFLAGS} -o rovio driver.o rovioKalmanFilter.o ${CPP_LIB_FLAGS} ${LIB_LINK}
 
-${PROGRAM}: ${PROGRAM}.cpp
-	g++ ${CFLAGS} -c ${PROGRAM}.cpp
-	g++ ${CFLAGS} -c Fir.cpp
-	g++ ${CFLAGS} -c PID.cpp
-	g++ ${CFLAGS} -c Kalman.cpp
-	g++ ${CFLAGS} -c Robot.cpp
-	g++ ${CFLAGS} -o ${PROGRAM} ${PROGRAM}.o Fir.o PID.o Kalman.o Robot.o ${CPP_LIB_FLAGS} ${LIB_LINK}
+driver.o: driver.cpp Functions.h PID.h fir.h
+	g++ ${CFLAGS} -c driver.cpp
+	
+rovioKalmanFilter.o: kalman/rovioKalmanFilter.c kalman/kalmanFilterDef.h
+	gcc ${CFLAGS} -c kalman/rovioKalmanFilter.c
 
 clean:
 	rm -rf *.o
-	rm -rf ${PROGRAM}
+	rm -rf rovio
+	rm -f *.o TR.csv
