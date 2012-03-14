@@ -43,10 +43,10 @@
 
 #include "Kalman.h"
 
-/* Initialize the filter */
-Kalman::Kalman( float *initPose, float *velocity, int deltat ) {
 
-  int i;
+// Contsrtuctor
+Kalman::Kalman()
+{    
   // zero the filter arrays
   memset(Q, 0, sizeof(float) * FILTER_SIZE * FILTER_SIZE);
   memset(Phi, 0, sizeof(float) * FILTER_SIZE * FILTER_SIZE);
@@ -55,7 +55,30 @@ Kalman::Kalman( float *initPose, float *velocity, int deltat ) {
   memset(W1, 0, sizeof(float) * FILTER_SIZE * FILTER_SIZE);
   memset(W2, 0, sizeof(float) * FILTER_SIZE * FILTER_SIZE);
   memset(P, 0, sizeof(float) * FILTER_SIZE * FILTER_SIZE);
-  
+}
+
+// Destructor
+// Frees memory of Kalman object
+Kalman::~Kalman()
+{
+	delete Q;
+	delete R1;
+	delete R2;
+	delete Phi;
+	delete residual_s1;
+	delete residual_s2;
+	delete W1;
+	delete W2;
+	delete current_state;
+	delete P;
+}
+
+
+/* Initialize the filter */
+void Kalman::initialize( float *initPose, float *velocity, int deltat )
+{  
+    int i;
+
   /* Initialize the model array */
   diag(Phi,1);
   Phi[ROWCOL(0,3)]=deltat;
@@ -88,22 +111,6 @@ Kalman::Kalman( float *initPose, float *velocity, int deltat ) {
   current_state[6] = 0;
   current_state[7] = 0;
   current_state[8] = 0;
-}
-
-// Destructor
-// Frees memory of Kalman object
-Kalman::~Kalman()
-{
-	delete Q;
-	delete R1;
-	delete R2;
-	delete Phi;
-	delete residual_s1;
-	delete residual_s2;
-	delete W1;
-	delete W2;
-	delete current_state;
-	delete P;
 }
 
 void Kalman::rovioKalmanFilter( float *meas_S1, float *meas_S2, float *predicted ) {

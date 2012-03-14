@@ -22,11 +22,13 @@ using namespace std;
 class Kalman
 {
 public:
-	Kalman( float *, float *,  int );
+	Kalman();
 	~Kalman();
-	void rovioKalmanFilter( float *, float *, float * );
-	void rovioKalmanFilterSetVelocity( float * );
-	void rovioKalmanFilterSetUncertainty(  float * );
+    
+    void initialize( float *initPose, float *velocity, int deltat );
+	void rovioKalmanFilter( float *s1, float *s2, float *predicted );
+	void rovioKalmanFilterSetVelocity( float *velocity );
+	void rovioKalmanFilterSetUncertainty(  float *uncertainty );
 
 private:
 	float Q				[FILTER_SIZE * FILTER_SIZE];
