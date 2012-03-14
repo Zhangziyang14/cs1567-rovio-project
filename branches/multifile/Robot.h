@@ -55,6 +55,8 @@ private:
     void updateWE(int flag);
     void updateKalman();
     float CorrectTheta(float old, int roomID);
+	float WheelAverageX( float rightEncoder, float leftEncoder );
+	float WheelAverageY( float rightEncoder, float leftEncoder );
 };
 
 #endif

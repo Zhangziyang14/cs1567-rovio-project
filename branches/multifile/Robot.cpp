@@ -25,6 +25,9 @@
 using namespace std;
 
 /******define CONSTANTS******/
+#define ANGLE_WHEEL_RIGHT 0.523598776
+#define ANGLE_WHEEL_LEFT 2.61799388
+#define ANGLE_WHEEL_REAR 1.57079633
 #define COS_R 0.8660254            // cos(30).
 #define COS_L -0.8660254		   // cos(150).
 #define SIN 0.5                    // sin(30) and sin(150).
@@ -60,7 +63,7 @@ using namespace std;
 // Initializes values for Robot control
 Robot::Robot(string name)
 {
-    robot = new RobotInterface(name);
+    robot = new RobotInterface(name,1);
     kf = new Kalman();
     xFilter = new Fir();
     yFilter = new Fir();
@@ -115,7 +118,7 @@ void Robot::NS_Scale(){
     currNSY = currNSY * CM_PER_NS;
 
 }
-void Robot::NS_Align(room){ 
+void Robot::NS_Align(int room){ 
     switch(room)
 	{
 		case 2: 
@@ -150,8 +153,8 @@ void Robot::updateNS(int flag){
     
     
         if (roomID!=robot->RoomID()) {
-            xfilter->reset();
-            yfilter->reset();
+            xFilter->reset();
+            yFilter->reset();
             roomID = robot->RoomID();
         }
     
@@ -165,9 +168,9 @@ void Robot::updateNS(int flag){
             currNSTheta = finalTheta + deltaTheta;
         }
     
-        this->NS_Rotate();
+        this->NS_Rotate(roomID);
         this->NS_Scale();
-        this->NS_Align();
+        this->NS_Align(roomID);
         
     }else if(ACTION_TURN == flag){
         int step = 0;
@@ -208,8 +211,8 @@ void Robot::updateWE(int flag){
         
         //		printf("r %d, l %d, b %d,fr %5.2f, fl %5.2f, fb %5.2f\n",r,l,b,filterR,filterL,filterB);
         
-		float moveY = WheelAverageY(filterR, filterL) * CM_PER_TICKS;//get x contribution after filter  
-		float moveX = WheelAverageX(filterR, filterL) * CM_PER_TICKS;//get y contribution after filter
+		float moveY = WheelAverageY(filterR, filterL) * CM_PER_TICK;//get x contribution after filter  
+		float moveX = WheelAverageX(filterR, filterL) * CM_PER_TICK;//get y contribution after filter
         
         //		printf("moveX %5.2f ",moveX);
         
@@ -222,7 +225,7 @@ void Robot::updateWE(int flag){
 		int b = robot -> getWheelEncoder(RI_WHEEL_REAR);
 		float filterB = rearFilter->getValue(b);
 		
-		float deltaTheta = filterB * REDIAN_PER_TICK;	//calcualte estimate 
+		float deltaTheta = filterB * RADIAN_PER_TICK;	//calcualte estimate 
 		currWTheta += deltaTheta;
 	}
 
@@ -265,9 +268,9 @@ void Robot::Init(){
     /************************
      Initialize Kalman Filter
      ************************/
-    float *initPose = (float *)calloc(3, sizeof(float));
-	float *velocity = (float *)calloc(3, sizeof(float));
-	predicted = (float *)calloc(9, sizeof(float));
+    float initPose[3];
+	float velocity[3];
+	float predicted[9];
 	
 	float firX, firY;
 	
@@ -306,10 +309,9 @@ void Robot::Init(){
     printf( "Initial Pose:\nX: %.3f Y: %.3f Theta(Rad): %.3f Theta(Deg): %.3f\n", initPose[0], initPose[1], initPose[2], TODEGREE(initPose[2]) );
     #endif
 	
-	kf->rovioKalmanFilter(initPose, velocity, deltat);
+	kf->initialize(initPose, velocity, deltat);
 	
-	free(initPose);
-	free(velocity);
+
 	
     
 }
@@ -365,13 +367,13 @@ void Robot::MoveTo(float targetX, float targetY){
         /*********************************
           update X, Y Theta
          *********************************/
-        updateNS();
-        updateWE();
+        updateNS(ACTION_MOVE);
+        updateWE(ACTION_MOVE);
         
         vel[0] = move_speed * -sin(currTheta) * CM_PER_TICK;
         vel[1] = move_speed * cos(currTheta) * CM_PER_TICK;
         kf->rovioKalmanFilterSetVelocity(vel);
-        UpdateKalman();
+        updateKalman();
         
         currX =finalX;
         currY = finalY;
@@ -396,7 +398,7 @@ void Robot::MoveTo(float targetX, float targetY){
 		printf(" offset: %6.2f, \n",disoffset);
         
 		//if distance offset is less than margin, done
-		if(disoffset <= margin) {
+		if(disoffset <= XYRange) {
 			if(!robot->IR_Detected()){//issue stop command
 				robot->Move(RI_STOP,move_speed);
 			}
@@ -415,7 +417,7 @@ void Robot::MoveTo(float targetX, float targetY){
 						printf("----target %5.2f, %5.2f--------Im at %5.2f,%5.2f, need to face 270\n",
 							   targetX,targetY,currX,currY);
 						TurnTo(0.0);
-						MoveToXY(targetX,targetY);//move to a new destination
+						MoveTo(targetX,targetY);//move to a new destination
 						break;
 					}
 				}
@@ -424,7 +426,7 @@ void Robot::MoveTo(float targetX, float targetY){
 						printf("----target %5.2f, %5.2f--------Im at %5.2f,%5.2f, need to face 270\n",
 							   targetX,targetY,currX,currY);
 						TurnTo(180.0);
-						MoveToXY(targetX,targetY);//move to a new destination
+						MoveTo(targetX,targetY);//move to a new destination
 						break;
 					}
                     
@@ -436,7 +438,7 @@ void Robot::MoveTo(float targetX, float targetY){
 						printf("----target %5.2f, %5.2f--------Im at %5.2f,%5.2f, need to face 270\n",
 							   targetX,targetY,currX,currY);
 						TurnTo((float)270.0);
-						MoveToXY(targetX,targetY);//move to a new destination
+						MoveTo(targetX,targetY);//move to a new destination
 						break;
 					}
                     
@@ -446,7 +448,7 @@ void Robot::MoveTo(float targetX, float targetY){
 						printf("----target %5.2f, %5.2f--------Im at %5.2f,%5.2f, need to face 270\n",
 							   targetX,targetY,currX,currY);
 						TurnTo((float)90.0);
-						MoveToXY(targetX,targetY);//move to a new destination
+						MoveTo(targetX,targetY);//move to a new destination
 						break;
 					}
 				}
@@ -501,12 +503,12 @@ void Robot::TurnTo(float target){
         // data sample collecting
         if(multiple_sample){
         
-            updateNS();
-            updateWE();
+            updateNS(ACTION_TURN);
+            updateWE(ACTION_TURN);
             
-            vel[2] = turn_speed*REDIAN_PER_TICK;
+            vel[2] = turn_speed*RADIAN_PER_TICK;
             kf->rovioKalmanFilterSetVelocity(vel);
-            UpdateKalman();
+            updateKalman();
             degreeCurrent = TODEGREE(finalTheta);
             
             diff = MINABS(target-degreeCurrent, 360-degreeCurrent+target);//get diff between target and current
@@ -559,7 +561,7 @@ void Robot::TurnTo(float target){
 
 }
 
-float Robot::CorrectTheta(float old, int roomID){
+float Robot::CorrectTheta(float oldTheta, int roomID){
     float newTheta;
 	
 	switch(roomID) {
@@ -584,3 +586,20 @@ float Robot::CorrectTheta(float old, int roomID){
 
 }
 
+float Robot::WheelAverageX( float rightEncoder, float leftEncoder )
+{
+	float rightFinal, leftFinal;
+	rightFinal = rightEncoder * cos( ANGLE_WHEEL_RIGHT );
+	leftFinal = leftEncoder * cos( ANGLE_WHEEL_LEFT );
+	//printf( "WheelAverageX():\nrightFinal: %.3f leftFinal: %.3f\n", rightFinal, leftFinal );
+	return (rightFinal + leftFinal) / 2;
+}
+
+// returns average of computed left and right encoder y-axis motion
+float Robot::WheelAverageY( float rightEncoder, float leftEncoder )
+{
+	float rightFinal, leftFinal;
+	rightFinal = rightEncoder * sin( ANGLE_WHEEL_RIGHT );
+	leftFinal = leftEncoder * sin( ANGLE_WHEEL_LEFT );
+	return (rightFinal + leftFinal) / 2;
+}
