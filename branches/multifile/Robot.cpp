@@ -334,7 +334,7 @@ void Robot::ReadData(){
 		sumd += degree;
 		sumX += x;
 		sumY += y;
-        		printf("X: %5d, Y: %5d, degree: %4d, avg: %6d-%6d-%4d, signal %d-%6d\n",
+        		printf("X: %5d, Y: %5d, degree: %4d, avg: %6d|%6d|%4d, signal %d-%6d\n",
         			   x,y,degree, sumX/step,sumY/step,sumd/step, roomID,robot->NavStrengthRaw());
         
 		step++;
