@@ -1,7 +1,7 @@
 /** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 * Fir.cpp																*
 * Created: 3/12/2012													*
-* Authors: CJ McAllister, Brendan Liu									*
+* Authors: CJ McAllister, Yuxin Liu									*
 *																		*
 * Provides implementation of FIR filtering functions defined in Fir.h	*
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -21,6 +21,7 @@ Fir::Fir()
 	}
 	
 	next_sample = 0;
+    initialized = false;
 }
 
 // Destructor
@@ -36,13 +37,17 @@ Fir::~Fir()
  * returns the next filtered sample
  * incorporates new sample into filter data array
  */
-float Fir::filter( float val )
+float Fir::getValue(float val)
 {
 	float sum = 0;
 
 	/* assign  new value to "next" slot */
-	samples[next_sample] = val;
-
+    if (initialized == false) {
+        initialize(val);
+    }
+    else{
+        samples[next_sample] = val;
+    }
 	/* calculate a  weighted sum
 	 i tracks the next coeficeint
 	 j tracks the samples w/wrap-around */
@@ -58,4 +63,18 @@ float Fir::filter( float val )
 		next_sample = 0;
 	
 	return sum;
+}
+
+void Filter::initialize(float first) {
+    int i;
+    
+    initialized = true;
+    
+    for (i = 0; i < taps; i++) {
+        samples[i] = first;
+    }
+}
+
+void Filter::reset(void) {
+    initialized = false;
 }

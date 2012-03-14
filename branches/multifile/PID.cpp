@@ -36,7 +36,7 @@ PID::~PID()
 // @param error -- How far the robot needs to travel.
 // @return The full PID value.
 
-float PID::control( float error )
+float PID::control(float error)
 {
     float sum_error = 0;
 	int prevIndex = currIndex - 1;

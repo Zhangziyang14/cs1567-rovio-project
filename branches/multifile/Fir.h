@@ -7,7 +7,7 @@
 * dmc - 03-04-08								*
 * for cs 1567									*
 * 												*
-* Edited by: CJ McAllister, Brendan Liu			* 
+* Edited by: CJ McAllister, Yuxin Liu			* 
 *												*
 * Declares functions for use in FIR filtering	*
 * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -20,12 +20,15 @@ class Fir
 public:
 	Fir();
 	~Fir();
-	float filter( float );
+	float getValue(float);
+    void reset(void);
 
 private:
-  vector<float> coefficients; 	//coefficients[TAPS]
-  vector<float>	samples;		//samples[TAPS]
-  unsigned  next_sample;
+    vector<float> coefficients; 	//coefficients[TAPS]
+    vector<float>	samples;		//samples[TAPS]
+    unsigned  next_sample;
+    bool initialized;
+    void initialize(float first);
 };
 
 #endif

@@ -14,6 +14,9 @@
 #include <cstring>
 #include <cstdlib>
 #include <vector>
+
+#define FILTER_SIZE 9
+
 using namespace std;
 
 class Kalman

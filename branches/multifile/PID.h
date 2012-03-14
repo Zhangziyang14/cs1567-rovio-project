@@ -18,11 +18,11 @@ class PID
 public:
 	PID();
 	~PID();
-	float control( float );
+	float control(float);
 	
 private:
 	bool bInit;
-    vector<float> err_PID; // err_PID[5]
+    float err_PID[5]; // err_PID[5]
     float vel_PID;
     
     int currIndex;
