@@ -9,7 +9,9 @@
 * Declares functions for use in Kalman filter	*
 * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#include <clapack.h>
+extern "C"{
+    #include <clapack.h>
+}
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
