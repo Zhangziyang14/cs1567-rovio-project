@@ -8,9 +8,13 @@
 *											*
 * * * * * * * * * * * * * * * * * * * * * * */
 
+#include <iostream>
+
 #include "robot_if++.h"
+#include "robot_color.h"
 #include "Fir.h"
 #include "Kalman.h"
+#include "PID.h"
 
 class Robot
 {
@@ -37,6 +41,19 @@ protected:
     float finalTheta;
     
     int roomID;
+	
+	IplImage *image;
+	IplImage *hsv;
+	IplImage *threshold;
+	
+	squares_t *squares;
+	squares_t *biggest;
+	squares_t *sq_idx;
+
+	CvPoint pt1;
+	CvPoint pt2;
+
+	int sq_amt;
     
 public:
 	Robot(string);
@@ -46,6 +63,8 @@ public:
     void TurnTo(float target);
     void Init();
     void ReadData();
+	void InitCamera();
+	void ShowImage();
 	
 private:
     void NS_Rotate(int room);
