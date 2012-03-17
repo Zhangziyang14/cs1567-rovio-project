@@ -42,18 +42,9 @@ protected:
     
     int roomID;
 	
-	IplImage *image;
-	IplImage *hsv;
-	IplImage *threshold;
-	
-	squares_t *squares;
-	squares_t *biggest;
-	squares_t *sq_idx;
-
-	CvPoint pt1;
-	CvPoint pt2;
-
-	int sq_amt;
+	IplImage *m_pImage;
+	IplImage *m_pHsv;
+	IplImage *m_pThreshold;
     
 public:
 	Robot(string);
@@ -64,7 +55,11 @@ public:
     void Init();
     void ReadData();
 	void InitCamera();
-	void ShowImage();
+	void CamNav();
+	squares_t *FindSquares( int color );
+	squares_t *GetBiggestSquares( squares_t *squares );
+	void DrawCenterLine( squares_t *squares );
+
 	
 private:
     void NS_Rotate(int room);

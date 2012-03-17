@@ -15,13 +15,7 @@ using namespace std;
  
 
 int main(int argv, char **argc)
-{
-	int major, minor;
-	IplImage *image = NULL, *hsv = NULL, *threshold = NULL;
-	squares_t *squares, *biggest, *sq_idx;
-	CvPoint pt1, pt2;
-	int sq_amt;
- 
+{ 
 	// Make sure we have a valid command line argument.
 	if( argv <= 1 ){
 		exit(-1);
@@ -32,6 +26,6 @@ int main(int argv, char **argc)
 	robot->Init();
 	robot->InitCamera();
 
-	robot->ShowImage();
+	robot->CamNav();
  
 }

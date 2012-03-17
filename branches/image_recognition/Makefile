@@ -1,4 +1,4 @@
-CFLAGS=-ggdb -g3
+CFLAGS=-g3
 LIB_FLAGS=-L. -lrobot_if
 CPP_LIB_FLAGS=${LIB_FLAGS} -lrobot_if++
 LIB_LINK=-lhighgui -lcv -lcxcore
@@ -6,6 +6,9 @@ PROGRAM=Test
 DEPS=${PROGRAM}.o Fir.o PID.o Kalman.o Robot.o
 
 all: ${PROGRAM}
+
+debug: CFLAGS +=-DDEBUG -ggdb -Wall
+debug: ${PROGRAM}
 
 ${PROGRAM}: ${DEPS}
 	g++ ${CFLAGS} -o ${PROGRAM} ${DEPS} ${CPP_LIB_FLAGS} ${LIB_LINK}

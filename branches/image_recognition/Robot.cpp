@@ -311,23 +311,23 @@ void Robot::InitCamera()
 	
 	// Create a window to display the output
 	cvNamedWindow("Rovio Camera", CV_WINDOW_AUTOSIZE);
-	cvNamedWindow("Biggest Square", CV_WINDOW_AUTOSIZE);
+	cvNamedWindow("Pink Squares", CV_WINDOW_AUTOSIZE);
 	
-	// Create an image to store the image from the camera
-	image = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
+	// Create an m_pImage to store the m_pImage from the camera
+	m_pImage = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
 
-	// Create an image to store the HSV version in
+	// Create an m_pImage to store the HSV version in
 	// We configured the camera for 640x480 above, so use that size here
-	hsv = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
+	m_pHsv = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
 
-	// And an image for the thresholded version
-	threshold = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 1);
+	// And an m_pImage for the thresholded version
+	m_pThreshold = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 1);
 
 	// Move the head up to the middle position
 	robot->Move(RI_HEAD_MIDDLE, RI_FASTEST);
 }
 
-void Robot::ShowImage()
+void Robot::CamNav()
 {
 	do
 	{
@@ -336,66 +336,185 @@ void Robot::ShowImage()
 			continue;
 		}
 
-		// Get the current camera image and display it
-		if(robot->getImage(image) != RI_RESP_SUCCESS) {
-			std::cout << "Unable to capture an image!" << std::endl;
+		// Get the current camera m_pImage and display it
+		if(robot->getImage(m_pImage) != RI_RESP_SUCCESS) {
+			std::cout << "Unable to capture an m_pImage!" << std::endl;
 			continue;
 		}
-		cvShowImage("Rovio Camera", image);
+		cvShowImage("Rovio Camera", m_pImage);
 
-		// Convert the image from RGB to HSV
-		cvCvtColor(image, hsv, CV_BGR2HSV);
-		
-		// Pick out only the pink color from the image
-		cvInRangeS(hsv, RC_PINK_LOW, RC_PINK_HIGH, threshold);
+		// construct filtered m_pImage
+		squares_t *pinkSquares = FindSquares( RC_PINK );
+		//squares_t *yelSquares = FindSquares( RC_YELLOW );
+		DrawCenterLine( pinkSquares );
 
-		// Find the squares in the image
-		squares = robot->findSquares(threshold, RI_DEFAULT_SQUARE_SIZE);
-		
-		// Loop over the squares and find the biggest one
-		biggest = squares;
-		sq_idx = squares;
-		while(sq_idx != NULL) {
-			if(sq_idx->area > biggest->area)
-				biggest = sq_idx;
-			sq_idx = sq_idx->next;
-		}
-
-		
-		// Only draw if we have squares
-		if(biggest != NULL) {
-			// Draw an X marker on the image
-			sq_amt = (int) (sqrt(biggest->area) / 2);	
-
-			// Upper Left to Lower Right
-			pt1.x = biggest->center.x - sq_amt;
-			pt1.y = biggest->center.y - sq_amt;
-			pt2.x = biggest->center.x + sq_amt;
-			pt2.y = biggest->center.y + sq_amt;
-			cvLine(image, pt1, pt2, CV_RGB(0, 255, 0), 3, CV_AA, 0);
-
-			// Lower Left to Upper Right
-			pt1.x = biggest->center.x - sq_amt;
-			pt1.y = biggest->center.y + sq_amt;
-			pt2.x = biggest->center.x + sq_amt;
-			pt2.y = biggest->center.y - sq_amt;
-			cvLine(image, pt1, pt2, CV_RGB(0, 255, 0), 3, CV_AA, 0);
-		}
-
-		// Display the image with the drawing on it
-		cvShowImage("Biggest Square", image);
+		// Display the m_pImage with the drawing on it
+		cvShowImage("Pink Squares", m_pImage);
 
 		// Update the UI
 		cvWaitKey(10);
 
+
 		// Release the square data
-		while(squares != NULL) {
-			sq_idx = squares->next;
-			delete(squares);
-			squares = sq_idx;	
+		while(pinkSquares != NULL) {
+			squares_t *sq_tmp = pinkSquares->next;
+			delete(pinkSquares);
+			pinkSquares = sq_tmp;
 		}
 
 	}while(1);
+}
+
+squares_t *Robot::FindSquares( int color )
+{
+	int i=0;
+	CvScalar lineColor;
+	squares_t *squares;
+	CvPoint pt1, pt2;
+	int sq_amt;
+
+	// Convert the m_pImage from RGB to HSV
+	cvCvtColor(m_pImage, m_pHsv, CV_BGR2HSV);
+		
+	// Pick out only the pink or yellow color from the m_pImage
+	if ( color == RC_PINK )
+	{
+		cvInRangeS(m_pHsv, RC_PINK_LOW, RC_PINK_HIGH, m_pThreshold);
+		lineColor = CV_RGB(0, 255, 0);
+	}
+	else if ( color == RC_YELLOW )
+	{
+		cvInRangeS(m_pHsv, RC_YELLOW_LOW, RC_YELLOW_HIGH, m_pThreshold);
+		lineColor = CV_RGB(0, 0, 255);
+	}
+	else
+	{
+		printf("Bad color code. Exiting.\n");
+		exit(-1);
+	}
+
+	// Find the squares in the m_pImage
+	squares = robot->findSquares(m_pThreshold, RI_DEFAULT_SQUARE_SIZE);
+	
+#ifdef DEBUG
+	squares_t *sq_temp_debug = squares;
+
+	//print squares info
+	printf("\n===== SQUARES INFO =====\n");
+
+	while( sq_temp_debug != NULL )
+	{
+		printf("Square %d:\n", i);
+		printf("Center: (%d, %d)\n", sq_temp_debug->center.x, sq_temp_debug->center.y);
+		printf("Area: %d\n", sq_temp_debug->area);
+		
+		sq_temp_debug = sq_temp_debug->next;
+		i++;
+	}
+#endif
+
+	squares_t *sq_temp = squares;
+
+	// draw until end of list reached
+	while( sq_temp != NULL ) {
+		// Draw an X marker on the m_pImage
+		sq_amt = (int) (sqrt(sq_temp->area) / 2);	
+
+		// Upper Left to Lower Right
+		pt1.x = sq_temp->center.x - sq_amt;
+		pt1.y = sq_temp->center.y - sq_amt;
+		pt2.x = sq_temp->center.x + sq_amt;
+		pt2.y = sq_temp->center.y + sq_amt;
+		cvLine(m_pImage, pt1, pt2, lineColor, 3, CV_AA, 0);
+
+		// Lower Left to Upper Right
+		pt1.x = sq_temp->center.x - sq_amt;
+		pt1.y = sq_temp->center.y + sq_amt;
+		pt2.x = sq_temp->center.x + sq_amt;
+		pt2.y = sq_temp->center.y - sq_amt;
+		cvLine(m_pImage, pt1, pt2, lineColor, 3, CV_AA, 0);
+
+		sq_temp = sq_temp->next;
+	}
+
+	return squares;
+}
+
+squares_t *Robot::GetBiggestSquares( squares_t *squares )
+{
+	squares_t *sq_tmp = squares;
+	squares_t *biggest = (squares_t *)malloc(sizeof(squares_t));
+	squares_t *second = (squares_t *)malloc(sizeof(squares_t));
+
+	biggest->area = 0;
+	second->area = 0;
+
+	// find biggest square
+	while( sq_tmp != NULL )
+	{
+		// copy contents of sq_tmp if bigger than current biggest
+		if( sq_tmp->area > biggest->area )
+		{
+			biggest->area = sq_tmp->area;
+			biggest->center.x = sq_tmp->center.x;
+			biggest->center.y = sq_tmp->center.y;
+			biggest->next = second;
+		}
+
+		sq_tmp = sq_tmp->next;
+	}
+	
+	// find second biggest square
+	sq_tmp = squares;
+	while ( sq_tmp != NULL )
+	{
+		// copy contents of sq_tmp if bigger than current second, but smaller than biggest
+		if( sq_tmp->area > second->area && sq_tmp->area < biggest->area )
+		{
+			second->area = sq_tmp->area;
+			second->center.x = sq_tmp->center.x;
+			second->center.y = sq_tmp->center.y;
+			second->next = NULL;
+		}
+
+		sq_tmp = sq_tmp->next;
+	}
+
+	return biggest;
+}
+
+void Robot::DrawCenterLine( squares_t *squares)
+{
+	squares_t *biggest = NULL;
+
+	biggest = GetBiggestSquares( squares );
+
+#ifdef DEBUG
+	int i=0;
+	squares_t *sq_temp_debug = biggest;
+
+	//print biggest info
+	printf("\n===== BIGGEST SQUARES INFO =====\n");
+
+	while( sq_temp_debug != NULL )
+	{
+		printf("Square %d:\n", i);
+		printf("Center: (%d, %d)\n", sq_temp_debug->center.x, sq_temp_debug->center.y);
+		printf("Area: %d\n", sq_temp_debug->area);
+		
+		sq_temp_debug = sq_temp_debug->next;
+		i++;
+	}
+#endif
+
+	// determine center point of the biggest squares
+	int xCenter = (biggest->center.x + biggest->next->center.x)/2;
+	int yCenter = (biggest->center.y + biggest->next->center.y)/2;
+	CvPoint sq_center = cvPoint( xCenter, yCenter );
+
+	// draw line from bottom center of image to biggest squares center point
+	CvPoint image_btm_center = cvPoint( 320, 480 );
+	cvLine(m_pImage, sq_center, image_btm_center, CV_RGB(255, 0, 0), 3, CV_AA, 0);	
 }
 
 void Robot::ReadData(){ 
