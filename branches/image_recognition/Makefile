@@ -19,3 +19,4 @@ ${PROGRAM}: ${DEPS}
 clean:
 	rm -rf *.o
 	rm -rf ${PROGRAM}
+	rm -rf core.*

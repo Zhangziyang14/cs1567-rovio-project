@@ -45,6 +45,11 @@ protected:
 	IplImage *m_pImage;
 	IplImage *m_pHsv;
 	IplImage *m_pThreshold;
+	IplImage *m_pHue;
+	IplImage *m_pSat;
+	IplImage *m_pVal;
+
+	CvPoint m_CvPpath_center;
     
 public:
 	Robot(string);
@@ -59,6 +64,7 @@ public:
 	squares_t *FindSquares( int color );
 	squares_t *GetBiggestSquares( squares_t *squares );
 	void DrawCenterLine( squares_t *squares );
+	void DrawOnSquares( squares_t *squares, CvScalar lineColor );
 
 	
 private:
@@ -71,6 +77,7 @@ private:
     float CorrectTheta(float old, int roomID);
 	float WheelAverageX( float rightEncoder, float leftEncoder );
 	float WheelAverageY( float rightEncoder, float leftEncoder );
+	int ListLength( squares_t *list );
 };
 
 #endif
