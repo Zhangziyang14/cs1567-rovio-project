@@ -7,7 +7,7 @@ DEPS=${PROGRAM}.o Fir.o PID.o Kalman.o Robot.o
 
 all: ${PROGRAM}
 
-debug: CFLAGS +=-DDEBUG -ggdb -Wall
+debug: CFLAGS +=-DDEBUG -ggdb -Wall -g
 debug: ${PROGRAM}
 
 ${PROGRAM}: ${DEPS}

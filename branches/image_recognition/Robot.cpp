@@ -44,6 +44,10 @@ using namespace std;
 #define MINABS(x,y) (ABS(x)<ABS(y)?(x):(y))//return the one with lower absolute value
 
 
+/****** Image Recognition Macros ******/
+#define MY_PINK_LOW cvScalar(160, 100, 100)
+#define MY_PINK_HIGH cvScalar(179, 255, 255)
+
 // Constructor
 // Initializes values for Robot control
 Robot::Robot(string name)
@@ -313,14 +317,14 @@ void Robot::InitCamera()
 	cvNamedWindow("Rovio Camera", CV_WINDOW_AUTOSIZE);
 	cvNamedWindow("Pink Squares", CV_WINDOW_AUTOSIZE);
 	
-	// Create an m_pImage to store the m_pImage from the camera
+	// Create an image to store the m_pImage from the camera
 	m_pImage = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
 
-	// Create an m_pImage to store the HSV version in
+	// Create an image to store the HSV version in
 	// We configured the camera for 640x480 above, so use that size here
 	m_pHsv = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
 
-	// And an m_pImage for the thresholded version
+	// And an image for the thresholded version
 	m_pThreshold = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 1);
 
 	// Move the head up to the middle position
@@ -338,7 +342,7 @@ void Robot::CamNav()
 
 		// Get the current camera m_pImage and display it
 		if(robot->getImage(m_pImage) != RI_RESP_SUCCESS) {
-			std::cout << "Unable to capture an m_pImage!" << std::endl;
+			std::cout << "Unable to capture an image!" << std::endl;
 			continue;
 		}
 		cvShowImage("Rovio Camera", m_pImage);
@@ -346,7 +350,10 @@ void Robot::CamNav()
 		// construct filtered m_pImage
 		squares_t *pinkSquares = FindSquares( RC_PINK );
 		//squares_t *yelSquares = FindSquares( RC_YELLOW );
-		DrawCenterLine( pinkSquares );
+		
+		// only draw center line if 2 squares present
+		if ( pinkSquares != NULL && pinkSquares->next != NULL )
+			DrawCenterLine( pinkSquares );
 
 		// Display the m_pImage with the drawing on it
 		cvShowImage("Pink Squares", m_pImage);
@@ -374,12 +381,12 @@ squares_t *Robot::FindSquares( int color )
 	int sq_amt;
 
 	// Convert the m_pImage from RGB to HSV
-	cvCvtColor(m_pImage, m_pHsv, CV_BGR2HSV);
-		
+    cvCvtColor(m_pImage, m_pHsv, CV_BGR2HSV);
+
 	// Pick out only the pink or yellow color from the m_pImage
 	if ( color == RC_PINK )
 	{
-		cvInRangeS(m_pHsv, RC_PINK_LOW, RC_PINK_HIGH, m_pThreshold);
+		cvInRangeS(m_pHsv, MY_PINK_LOW, MY_PINK_HIGH, m_pThreshold);
 		lineColor = CV_RGB(0, 255, 0);
 	}
 	else if ( color == RC_YELLOW )
@@ -506,7 +513,6 @@ void Robot::DrawCenterLine( squares_t *squares)
 		i++;
 	}
 #endif
-
 	// determine center point of the biggest squares
 	int xCenter = (biggest->center.x + biggest->next->center.x)/2;
 	int yCenter = (biggest->center.y + biggest->next->center.y)/2;
@@ -514,7 +520,7 @@ void Robot::DrawCenterLine( squares_t *squares)
 
 	// draw line from bottom center of image to biggest squares center point
 	CvPoint image_btm_center = cvPoint( 320, 480 );
-	cvLine(m_pImage, sq_center, image_btm_center, CV_RGB(255, 0, 0), 3, CV_AA, 0);	
+	cvLine(m_pImage, sq_center, image_btm_center, CV_RGB(255, 0, 0), 3, CV_AA, 0);
 }
 
 void Robot::ReadData(){ 
