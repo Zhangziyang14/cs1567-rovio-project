@@ -63,7 +63,7 @@ public:
 	void CamNav();
 	squares_t *FindSquares( int color );
 	squares_t *GetBiggestSquares( squares_t *squares );
-	void DrawCenterLine( squares_t *squares );
+	double DrawCenterLine( squares_t *squares );
 	void DrawOnSquares( squares_t *squares, CvScalar lineColor );
 
 	

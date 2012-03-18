@@ -47,6 +47,7 @@ using namespace std;
 /****** Image Recognition Macros ******/
 #define MY_PINK_LOW cvScalar(160, 0, 0)
 #define MY_PINK_HIGH cvScalar(179, 255, 255)
+#define SLOPE_RANGE 1.5
 
 // Constructor
 // Initializes values for Robot control
@@ -342,6 +343,9 @@ void Robot::InitCamera()
 
 void Robot::CamNav()
 {
+	bool adjust_needed = false;
+	int direction;
+
 	do
 	{
 		if(robot->update() != RI_RESP_SUCCESS) {
@@ -360,7 +364,7 @@ void Robot::CamNav()
 		squares_t *pinkSquares = FindSquares( RC_PINK );
 		//squares_t *yelSquares = FindSquares( RC_YELLOW );
 		
-		DrawCenterLine( pinkSquares );
+		double slope = DrawCenterLine( pinkSquares );
 
 		// Display the drawn-on image and the threshold
 		cvShowImage("Pink Squares", m_pImage);
@@ -369,6 +373,19 @@ void Robot::CamNav()
 		// Update the UI
 		cvWaitKey(10);
 
+		// adjustment required if slope is within range
+		if ( slope <= SLOPE_RANGE && slope >= -SLOPE_RANGE )
+		{
+			// left turn required
+			if ( slope < 0 )
+				direction = RI_TURN_LEFT;
+			// right turn required
+			else
+				direction = RI_TURN_RIGHT;
+			
+			robot->Move(direction, 1);
+			robot->Move(RI_STOP, 1);
+		}
 
 		// Release the square data
 		while(pinkSquares != NULL) {
@@ -377,7 +394,7 @@ void Robot::CamNav()
 			pinkSquares = sq_tmp;
 		}
 
-	}while(1);
+	}while( !adjust_needed );
 }
 
 squares_t *Robot::FindSquares( int color )
@@ -385,11 +402,9 @@ squares_t *Robot::FindSquares( int color )
 	int i=0;
 	CvScalar lineColor;
 	squares_t *squares;
-	
-	IplImage *low_pink = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
-	IplImage *high_pink = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
-	cvZero(low_pink);
-	cvZero(high_pink);
+
+	IplImage *pink = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
+	cvZero(pink);
 
 	// Convert the m_pImage from RGB to HSV
     cvCvtColor(m_pImage, m_pHsv, CV_BGR2HSV);
@@ -401,25 +416,13 @@ squares_t *Robot::FindSquares( int color )
 	if ( color == RC_PINK )
 	{
 		// filter threshold image
-		//cvSmooth(m_pHue, low_pink, CV_MEDIAN, 7, 7);
-		cvSmooth(m_pHue, high_pink, CV_MEDIAN, 7, 7);
-
-		//cvNot(low_pink, low_pink);
-		//cvInRangeS(low_pink, cvScalar((double)250), cvScalar((double)255), low_pink);
-		cvInRangeS(high_pink, cvScalar((double)165), cvScalar((double)180), high_pink);
-
-		cvAdd(low_pink, high_pink, m_pThreshold, NULL);
+		cvSmooth(m_pHue, pink, CV_MEDIAN, 7, 7);
+		cvInRangeS(pink, cvScalar((double)165), cvScalar((double)180), pink);
+		cvCopy(pink, m_pThreshold);
 
 #ifdef DEBUG
-		IplImage *agg_pink = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
-		cvAdd(low_pink, high_pink, agg_pink, NULL);
-
-		cvNamedWindow("low_pink");
-		cvNamedWindow("high_pink");
-		cvNamedWindow("agg_pink");
-		cvShowImage("low_pink", low_pink);
-		cvShowImage("high_pink", high_pink);
-		cvShowImage("agg_pink", agg_pink);
+		cvNamedWindow("pink");
+		cvShowImage("pink", pink);
 #endif
 
 		lineColor = CV_RGB(0, 255, 0);
@@ -436,7 +439,7 @@ squares_t *Robot::FindSquares( int color )
 	}
 	
 	// Find the squares in the m_pImage
-	squares = robot->findSquares(m_pThreshold, 400);
+	squares = robot->findSquares(m_pThreshold, 300);
 
 	DrawOnSquares(squares, lineColor);
 
@@ -511,10 +514,11 @@ squares_t *Robot::GetBiggestSquares( squares_t *squares )
 	return biggest;
 }
 
-void Robot::DrawCenterLine( squares_t *squares)
+double Robot::DrawCenterLine( squares_t *squares)
 {
 	squares_t *biggest = NULL;
 	int xCenter;
+	double slope;
 	
 	CvPoint image_btm_center = cvPoint( 320, 480 );
 	
@@ -532,9 +536,31 @@ void Robot::DrawCenterLine( squares_t *squares)
 			xCenter = (biggest->center.x + biggest->next->center.x) / 2;
 			m_CvPpath_center = cvPoint( xCenter, 300 );
 		}
+		// if they are, set slope to indicate that a turn is required
+		else
+		{
+			// squares on right
+			if ( biggest->center.x > 320 )
+				slope = SLOPE_RANGE;
+			// squares on left
+			else
+				slope = -SLOPE_RANGE;
+			
+			cvLine(m_pImage, m_CvPpath_center, image_btm_center, CV_RGB(255, 0, 0), 3, CV_AA, 0);
+			
+			printf("Slope: %f\n", slope);
+			return slope;
+		}
 	}
+
 	
 	cvLine(m_pImage, m_CvPpath_center, image_btm_center, CV_RGB(255, 0, 0), 3, CV_AA, 0);
+
+	// determine slope of the line
+	slope = (double)180 / (double)(m_CvPpath_center.x - 320);
+	printf("Slope: %f\n", slope);
+
+	return slope;
 }
 
 void Robot::DrawOnSquares( squares_t *squares, CvScalar lineColor )
@@ -744,6 +770,9 @@ void Robot::MoveTo(float targetX, float targetY){
 		if(!robot->IR_Detected()) { 
 			robot -> Move(move_flag, move_speed);
 		}
+
+		// check for path center
+		CamNav();
         
 	}while(1);
 
