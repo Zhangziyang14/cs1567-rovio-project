@@ -10,6 +10,7 @@
 
 #include "robot_if++.h"
 #include "Fir.h"
+#include "FirTheta.h"
 #include "Kalman.h"
 
 class Robot
@@ -20,6 +21,7 @@ protected:
     Fir *rightFilter;
     Fir *leftFilter;
     Fir *rearFilter;
+	FirTheta *thetaFilter;
     Kalman *kf;
     RobotInterface *robot;
     
@@ -32,6 +34,12 @@ protected:
 	float currNSY;            // The current North Star Y-coordinate reading.
 	float currNSTheta;        // The current North Star Theta reading.
     
+	float prevNSX;            // The prev North Star X-coordinate reading.
+	float prevNSY;            // The prev North Star Y-coordinate reading.
+	float prevNSTheta;        // The prev North Star Theta reading.
+
+
+
     float finalX;
     float finalY;
     float finalTheta;
@@ -46,6 +54,7 @@ public:
     void TurnTo(float target);
     void Init();
     void ReadData();
+	void test();
 	
 private:
     void NS_Rotate(int room);

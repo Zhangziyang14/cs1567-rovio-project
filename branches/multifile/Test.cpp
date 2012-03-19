@@ -18,20 +18,26 @@ int main(int argv, char **argc) {
  
 	// Make sure we have a valid command line argument.
 
- 
+	
 
  
 	Robot *robot = new Robot(argc[1]);
 
 	
 	robot->Init();
-    robot->ReadData();
+	printf("done.\n");
+	robot->test();
+
+
+
+	//robot->TurnTo(200);
+    //robot->ReadData();
 	
     //robot->MoveTo(0,336);//base 1
 	//robot->TurnTo(145);
 	
  
 	//clean up
-	delete(robot);
+	//delete(robot);
 	return 0;
 }

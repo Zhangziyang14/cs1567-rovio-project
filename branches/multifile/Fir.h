@@ -12,23 +12,32 @@
 * Declares functions for use in FIR filtering	*
 * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#include <vector>
-using namespace std;
+/*
+Filter.h
+simple fir filter code
+Team: 
+Date: 01022011
+*/
 
-class Fir
-{
+
+class Fir {
 public:
-	Fir();
-	~Fir();
-	float getValue(float);
-    void reset(void);
+	Fir(float *, int ); //constructor
+	Fir(const Fir * );	//copy constructor
+	~Fir();	//destructor
+	float getValue(float );	//return the next filtered value
+	void showfilter();	//display filter info
+	void reset(void);
 
-private:
-    vector<float> coefficients; 	//coefficients[TAPS]
-    vector<float>	samples;		//samples[TAPS]
-    unsigned  next_sample;
-    bool initialized;
+
+private:	//private data
+	float *coefficients;	//array of float coefficients
+	unsigned next_sample;	//next sample position
+	float *samples;	//sample array
+	int size;	//size of the filter array
+	bool initialized;
     void initialize(float first);
+
 };
 
 #endif

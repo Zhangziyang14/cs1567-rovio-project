@@ -18,6 +18,7 @@
 
 #include "Robot.h"
 #include "Fir.h"
+#include "FirTheta.h"
 #include "PID.h"
 #include "Kalman.h"
 //#include "Functions.h"
@@ -37,6 +38,7 @@ using namespace std;
 #define ACTION_MOVE 0x102/*action flag pass to update function*/
 #define OK 0
 #define FAIL -1
+#define ARRAY_SIZE 9//filter array size
 
 #define TURNTO_MARGIN 3
 #define MOVETO_MARGIN 5
@@ -46,7 +48,7 @@ using namespace std;
 #define ROOM4_Theta 4.0
 #define ROOM5_Theta 5.0
 
-#define CM_PER_NS 0.013f
+#define CM_PER_NS 0.018f //0.013f
 #define CM_PER_TICK 0.62
 #define DEGREE_PER_TICK 2.1160
 #define RADIAN_PER_TICK 0.0369
@@ -63,13 +65,32 @@ using namespace std;
 // Initializes values for Robot control
 Robot::Robot(string name)
 {
+		float wheel[] = {0.226534104,0.05857213,0.063044531,
+			 0.066090109,0.06719469,0.066090109,
+			 0.063034531,0.05857213,0.226534104};
+
+		float thetaFilterArray[] = {0.111,0.111,0.111,0.111,0.111,0.111,0.111,0.111,0.111};
+
     robot = new RobotInterface(name,1);
     kf = new Kalman();
-    xFilter = new Fir();
+
+	/*
+	xFilter = new Fir();
     yFilter = new Fir();
     rightFilter = new Fir();
     leftFilter = new Fir();
     rearFilter = new Fir();
+	//*/
+	
+	
+    xFilter = new Fir(wheel, ARRAY_SIZE);
+    yFilter = new Fir(wheel, ARRAY_SIZE);
+    rightFilter = new Fir(wheel, ARRAY_SIZE);
+    leftFilter = new Fir(wheel, ARRAY_SIZE);
+    rearFilter = new Fir(wheel, ARRAY_SIZE);
+	thetaFilter = new FirTheta(thetaFilterArray, 9);
+	//*/
+	robot->Move(RI_HEAD_MIDDLE,1);//move head up
 }
 
 // Destructor
@@ -146,6 +167,8 @@ void Robot::NS_Align(int room){
 void Robot::updateNS(int flag){
     if(ACTION_MOVE == flag){
         float deltaTheta;
+		float NS_distance;
+		float deltaX, deltaY;
         int acceptableRange = TORADIAN(3);//acceptable range for deltaTheta
     
         while(robot->update() != RI_RESP_SUCCESS) {cout << "Failed to update sensor information!" << endl;}
@@ -160,17 +183,30 @@ void Robot::updateNS(int flag){
     
         currNSX = xFilter->getValue(robot->X());
         currNSY = yFilter->getValue(robot->Y());
+
+		deltaX = currNSX - prevNSX;
+		deltaY = currNSY - prevNSY;
     
-        deltaTheta = robot->Theta() - finalTheta;
+        deltaTheta = thetaFilter->getValue(CorrectTheta(robot->Theta(),roomID))  - finalTheta;
         if (ABS(deltaTheta) <= acceptableRange) {
             currNSTheta = finalTheta;
         }else{
             currNSTheta = finalTheta + deltaTheta;
         }
     
-        this->NS_Rotate(roomID);
-        this->NS_Scale();
-        this->NS_Align(roomID);
+        //this->NS_Rotate(roomID);
+        //this->NS_Scale();
+        //this->NS_Align(roomID);
+
+		prevNSX = currNSX;
+		prevNSY = currNSY;
+		
+		NS_distance = sqrt(deltaX*deltaX + deltaY*deltaY)*CM_PER_NS;
+		
+		currNSX = finalX + (-cos(currNSTheta) * NS_distance);
+		currNSX = finalY + (-sin(currNSTheta) * NS_distance);
+
+
         
     }else if(ACTION_TURN == flag){
         int step = 0;
@@ -181,15 +217,18 @@ void Robot::updateNS(int flag){
 
         
         do{
-            sampleTheta = robot->Theta();//get current theta
+			sampleTheta = thetaFilter->getValue(CorrectTheta(robot->Theta(),roomID));//get current theta
 			newNSd = TODEGREE(sampleTheta);//turn it into degrees
             
-            curT +=sampleTheta;
-            curD += newNSd;
+			if(step>14){
+				curT +=sampleTheta;
+				curD += newNSd;
+			}
+			step++;
             
         }while (step<10);
         
-        currNSTheta = CorrectTheta(curT/10,roomID);//take average of last 10 readings
+        currNSTheta = CorrectTheta(curT/6,roomID);//take average of last 10 readings
         
     }
     
@@ -201,25 +240,27 @@ void Robot::updateNS(int flag){
 void Robot::updateWE(int flag){ 
     if(ACTION_MOVE == flag) {//it's a move update
 		float theta = finalTheta;
-		int r = robot -> getWheelEncoder(RI_WHEEL_RIGHT);
-		int l = robot -> getWheelEncoder(RI_WHEEL_LEFT);
-		int b = robot -> getWheelEncoder(RI_WHEEL_REAR);
+		int r = robot -> getWheelEncoderTotals(RI_WHEEL_RIGHT);
+		int l = robot -> getWheelEncoderTotals(RI_WHEEL_LEFT);
+		int b = robot -> getWheelEncoderTotals(RI_WHEEL_REAR);
         
 		float filterR =  rightFilter->getValue(r);
 		float filterL =  leftFilter->getValue(l);
 		float filterB =  rearFilter->getValue(b);
         
-        //		printf("r %d, l %d, b %d,fr %5.2f, fl %5.2f, fb %5.2f\n",r,l,b,filterR,filterL,filterB);
+
+		printf("---------- updateWE ---------------\n");
+        printf("r:%d, l:%d, b:%d, fr:%5.2f, fl:%5.2f, fb:%5.2f\n",r,l,b,filterR,filterL,filterB);
         
 		float moveY = WheelAverageY(filterR, filterL) * CM_PER_TICK;//get x contribution after filter  
 		float moveX = WheelAverageX(filterR, filterL) * CM_PER_TICK;//get y contribution after filter
         
-        //		printf("moveX %5.2f ",moveX);
+        printf("moveX: %5.2f moveY:%5.2f \n",moveX,moveY);
         
 		currWX += -cos(theta)*moveY-cos(theta)*moveX;
 		currWY += -sin(theta)*moveX-sin(theta)*moveY;
 		
-        //		printf(" Coord: %5.2f,%5.2f,%5.2f,%5.2f,%4.3f\t",preWX,preWY,curWX,curWY,curWTheta);
+        //printf(" currWX:%5.2f currWY:%5.2f\n",moveX,moveY);
 	}
 	else if(ACTION_TURN == flag) {//it's a turn update
 		int b = robot -> getWheelEncoder(RI_WHEEL_REAR);
@@ -253,16 +294,32 @@ void Robot::updateKalman(){
 
 }
 
+void Robot::test(){
+
+	do{
+		updateWE(ACTION_MOVE);
+		robot->Move(RI_MOVE_FORWARD,6);
+
+	}
+	while(1);
+
+}
+
 void Robot::Init(){ 
     
     /*********************
      Initialize Fir Filter
      *********************/
-    for ( int i=0; i<3; i++ )
+
+	roomID = robot->RoomID();
+    for ( int i=0; i<9; i++ )
 	{
         while(robot->update() != RI_RESP_SUCCESS) {cout << "Failed to update sensor information!" << endl;}
 		xFilter->getValue(robot->X());
 		yFilter->getValue(robot->Y());
+		thetaFilter->getValue(CorrectTheta(robot->Theta(),roomID));
+
+		printf("X:%4f Y:%4f Theta: %4f\n",robot->X(),robot->Y(),robot->Theta());
 	}
     
     /************************
@@ -296,7 +353,7 @@ void Robot::Init(){
 	for ( int i=0; i<10; i++ )
 	{
 		while(robot->update() != RI_RESP_SUCCESS) {cout << "Failed to update sensor information!" << endl;}
-		thetaSum += CorrectTheta( robot->Theta(), robot->RoomID() );
+		thetaSum += thetaFilter->getValue(CorrectTheta( robot->Theta(), robot->RoomID() ));
 	}
 	
 	initPose[2] = thetaSum / 10;
@@ -321,22 +378,45 @@ void Robot::ReadData(){
 	long sumX = 0;
 	long sumY = 0;
 	int step = 1;
+
+	long sumRawX = 0;
+	long sumRawY = 0;
     
 	do {
 		// Update the robot's sensor information.
 		while(robot->update() != RI_RESP_SUCCESS) {cout << "Failed to update sensor information!" << endl;}
 		
-		int degree = TODEGREE(CorrectTheta(robot->Theta(),roomID));
-		int x = xFilter->getValue(robot->X());
-		int y = yFilter->getValue(robot->Y());
+		double room2 = 383;
+
+		int degreeRaw = ((int)TODEGREE(robot->Theta()+ PI)+ (int)room2)%360;
+		int degree = TODEGREE(CorrectTheta(robot->Theta(),robot->RoomID()));
+		int xns = xFilter->getValue(robot->X());
+		int yns = yFilter->getValue(robot->Y());
+
+		int degreeF = thetaFilter->getValue(TODEGREE(robot->Theta()+ PI));
+
+		int xraw = robot->X();
+		int yraw = robot->Y();
+
 		roomID = robot->RoomID();
 		
+		
+		double x = (cos(TORADIAN(room2))*xns - yns*sin(TORADIAN(room2)))*CM_PER_NS + 248;
+
+		double y = sin(TORADIAN(room2))*xns + yns*cos(TORADIAN(room2))*CM_PER_NS+5700;
+
 		sumd += degree;
-		sumX += x;
-		sumY += y;
-        		printf("X: %5d, Y: %5d, degree: %4d, avg: %6d|%6d|%4d, signal %d-%6d\n",
-        			   x,y,degree, sumX/step,sumY/step,sumd/step, roomID,robot->NavStrengthRaw());
-        
+		sumX += xns;
+		sumY += yns;
+
+		sumRawX += xraw;
+		sumRawY += yraw;
+
+        printf("X: %5d(%6d), Y: %5d(%6d), degree:%3d(%3d), avg: %6d(%6d)|%6d(%6d)|%4d, signal %d-%6d\n",
+        			   xns,xraw,yns,yraw,degreeF,degree, sumX/step,sumRawX/step,sumY/step,sumRawY/step,sumd/step, roomID,robot->NavStrengthRaw());
+        if(step%5==0){
+			robot -> Move(RI_TURN_RIGHT, 2);
+		}
 		step++;
 	} while(1);
     
@@ -499,18 +579,20 @@ void Robot::TurnTo(float target){
     float pid_val; //pid value
 	float vel[3]; // velocity array
 	
+	printf("haha\n");
 	do {
         // data sample collecting
         if(multiple_sample){
-        
+			/*
             updateNS(ACTION_TURN);
             updateWE(ACTION_TURN);
             
             vel[2] = turn_speed*RADIAN_PER_TICK;
             kf->rovioKalmanFilterSetVelocity(vel);
             updateKalman();
-            degreeCurrent = TODEGREE(finalTheta);
-            
+            //degreeCurrent = TODEGREE(finalTheta);
+			//*/
+			degreeCurrent = thetaFilter->getValue(robot->Theta()+PI);
             diff = MINABS(target-degreeCurrent, 360-degreeCurrent+target);//get diff between target and current
             printf("-1target:%4.2f curr:%4.2f diff:%4.2F\n",target,degreeCurrent,diff);
         }
@@ -591,7 +673,7 @@ float Robot::WheelAverageX( float rightEncoder, float leftEncoder )
 	float rightFinal, leftFinal;
 	rightFinal = rightEncoder * cos( ANGLE_WHEEL_RIGHT );
 	leftFinal = leftEncoder * cos( ANGLE_WHEEL_LEFT );
-	//printf( "WheelAverageX():\nrightFinal: %.3f leftFinal: %.3f\n", rightFinal, leftFinal );
+	printf( "WheelAverageX():\nrightFinal: %.3f leftFinal: %.3f\n", rightFinal, leftFinal );
 	return (rightFinal + leftFinal) / 2;
 }
 
