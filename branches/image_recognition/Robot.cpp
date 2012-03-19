@@ -47,7 +47,7 @@ using namespace std;
 /****** Image Recognition Macros ******/
 #define MY_PINK_LOW cvScalar(160, 0, 0)
 #define MY_PINK_HIGH cvScalar(179, 255, 255)
-#define SLOPE_RANGE 5
+#define SLOPE_RANGE 0.1
 
 // Constructor
 // Initializes values for Robot control
@@ -344,7 +344,10 @@ void Robot::CamNav()
 {
 	int direction;
 	bool adjust_needed = false;
-
+	
+	double slope;
+	CvPoint centerPoint;
+	
 	do
 	{
 		if( !adjust_needed )
@@ -365,20 +368,28 @@ void Robot::CamNav()
 		squares_t *pinkSquares = FindSquares( RC_PINK );
 		//squares_t *yelSquares = FindSquares( RC_YELLOW );
 		
-		double slope = DrawCenterLine( pinkSquares );
+		int num_big;
+		squares_t *biggest = GetBiggestSquares( pinkSquares, &num_big );
+		
+		if( num_big > 1 )
+			DrawSquareLine( biggest, &slope, &centerPoint );
+
+		// draw line down image center
+		cvLine(m_pImage, cvPoint(320, 480), cvPoint(320, 0), CV_RGB(255, 0, 255), 3);
 
 		// Display the drawn-on image and the threshold
 		cvShowImage("Pink Squares", m_pImage);
 		cvShowImage("Threshold", m_pThreshold);
-
+		
 		// Update the UI
 		cvWaitKey(5);
 
-		// adjustment required if slope is within range
-		if ( slope <= SLOPE_RANGE && slope >= -SLOPE_RANGE )
+		printf("slope: %.3f\n", slope);
+		// adjustment required if slope is outside range
+		if ( slope >= SLOPE_RANGE || slope <= -SLOPE_RANGE )
 		{
 			// left turn required
-			if ( slope < 0 )
+			if ( slope > 0 )
 				direction = RI_TURN_LEFT;
 			// right turn required
 			else
@@ -401,6 +412,10 @@ void Robot::CamNav()
 			pinkSquares = sq_tmp;
 		}
 
+		/*
+		printf("X: %.3f Y: %.3f Theta: %.3f Room %d\n", robot->X(), robot->Y(), robot->Theta(), robot->RoomID());
+		printf("Right: %d Left: %d Rear: %d\n", robot->getWheelEncoderTotals(RI_WHEEL_RIGHT), robot->getWheelEncoderTotals(RI_WHEEL_LEFT), robot->getWheelEncoderTotals(RI_WHEEL_REAR)); 
+		*/
 	}while( 1 );
 }
 
@@ -459,7 +474,7 @@ squares_t *Robot::FindSquares( int color )
 	return squares;
 }
 
-squares_t *Robot::GetBiggestSquares( squares_t *squares )
+squares_t *Robot::GetBiggestSquares( squares_t *squares, int *count )
 {
 	squares_t *sq_tmp = squares;
 	squares_t *biggest = (squares_t *)malloc(sizeof(squares_t));
@@ -467,6 +482,13 @@ squares_t *Robot::GetBiggestSquares( squares_t *squares )
 
 	biggest->area = 0;
 	second->area = 0;
+
+	// check for no squares
+	if ( squares == NULL )
+	{
+		*count = 0;
+		return NULL;
+	}
 
 	// find biggest square
 	while( sq_tmp != NULL )
@@ -484,8 +506,14 @@ squares_t *Robot::GetBiggestSquares( squares_t *squares )
 	}
 	sq_tmp = squares;
 	
+	// if only 1 square, return biggest w/ count 1
 	if ( squares->next == NULL )
+	{
+		DrawOnSquares( biggest, CV_RGB(255, 0, 0) );
+
+		*count = 1;
 		return biggest;
+	}
 
 	// find second biggest square
 	while ( sq_tmp != NULL )
@@ -525,59 +553,41 @@ squares_t *Robot::GetBiggestSquares( squares_t *squares )
 			i++;
 		}
 #endif
-
+	*count = 2;
 	return biggest;
 }
 
-double Robot::DrawCenterLine( squares_t *squares)
+/**
+ * Draws a line between the 2 biggest squares
+ * 
+ * Returns slope and centerPoint output params
+ */
+void Robot::DrawSquareLine( squares_t *biggest, double *slope, CvPoint *centerPoint )
 {
-	squares_t *biggest = NULL;
-	int xCenter;
-	double slope;
+	//draw horizontal line connecting squares
+	CvPoint pt1, pt2;
 	
-	CvPoint image_btm_center = cvPoint( 320, 480 );
-	
-	// get biggest squares if any found
-	if ( squares != NULL )
-		biggest = GetBiggestSquares( squares );
+	pt1.x = biggest->center.x;
+	pt1.y = biggest->center.y;
+	pt2.x = biggest->next->center.x;
+	pt2.y = biggest->next->center.y;
 
-	// if more than 1 square found, determine new line
-	if ( biggest != NULL && biggest->next != NULL )
-	{
-		int dist = abs(biggest->center.x - biggest->next->center.x);
+	cvLine(m_pImage, pt1, pt2, CV_RGB(0, 0, 255), 3);
 
-		// only get new line if squares are not too close together
-		if( dist > 200 )
-		{
-			// determine shifted center point of the biggest squares
-			xCenter = (biggest->center.x + biggest->next->center.x) / 2;
-			m_CvPpath_center = cvPoint( xCenter, 300 );
-		}
-		// if they are, set slope to indicate that a turn is required
-		else
-		{
-			// squares on right
-			if ( biggest->center.x > 320 )
-				slope = SLOPE_RANGE;
-			// squares on left
-			else
-				slope = -SLOPE_RANGE;
-			
-			cvLine(m_pImage, m_CvPpath_center, image_btm_center, CV_RGB(255, 0, 0), 3, CV_AA, 0);
-			
-			printf("Slope: %f\n", slope);
-			return slope;
-		}
-	}
+	*slope = -((double)pt2.y - (double)pt1.y) / ((double)pt2.x - (double)pt1.x);
 
-	
-	cvLine(m_pImage, m_CvPpath_center, image_btm_center, CV_RGB(255, 0, 0), 3, CV_AA, 0);
+	//draw vertal line  between squares
+	int xCenter = (biggest->center.x + biggest->next->center.x)/2;
+	int yCenter = (biggest->center.y + biggest->next->center.y)/2;
 
-	// determine slope of the line
-	slope = (double)180 / (double)(m_CvPpath_center.x - 320);
-	printf("Slope: %f\n", slope);
+	pt1.x = xCenter;
+	pt1.y = yCenter + 10;
+	pt2.x = xCenter;
+	pt2.y = yCenter - 10;
+		
+	cvLine(m_pImage, pt1, pt2, CV_RGB(0, 0, 127), 3);
 
-	return slope;
+	*centerPoint = cvPoint(xCenter, yCenter);
 }
 
 void Robot::DrawOnSquares( squares_t *squares, CvScalar lineColor )

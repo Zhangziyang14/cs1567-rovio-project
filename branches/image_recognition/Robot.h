@@ -62,8 +62,8 @@ public:
 	void InitCamera();
 	void CamNav();
 	squares_t *FindSquares( int color );
-	squares_t *GetBiggestSquares( squares_t *squares );
-	double DrawCenterLine( squares_t *squares );
+	squares_t *GetBiggestSquares( squares_t *squares, int *count );
+	void DrawSquareLine( squares_t *squares, double *slope, CvPoint *centerPoint );
 	void DrawOnSquares( squares_t *squares, CvScalar lineColor );
 
 	
