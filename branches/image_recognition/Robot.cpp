@@ -47,7 +47,7 @@ using namespace std;
 /****** Image Recognition Macros ******/
 #define MY_PINK_LOW cvScalar(160, 0, 0)
 #define MY_PINK_HIGH cvScalar(179, 255, 255)
-#define SLOPE_RANGE 1.5
+#define SLOPE_RANGE 5
 
 // Constructor
 // Initializes values for Robot control
@@ -309,13 +309,12 @@ void Robot::Init(){
 void Robot::InitCamera()
 {
 	// Setup the camera
-	if(robot->CameraCfg(RI_CAMERA_DEFAULT_BRIGHTNESS, RI_CAMERA_DEFAULT_CONTRAST, 10, RI_CAMERA_RES_640, RI_CAMERA_QUALITY_HIGH)) {
+	if(robot->CameraCfg(RI_CAMERA_DEFAULT_BRIGHTNESS, RI_CAMERA_DEFAULT_CONTRAST, 5, RI_CAMERA_RES_640, RI_CAMERA_QUALITY_HIGH)) {
 		cout << "Failed to configure the camera!" << std::endl;
 		exit(-1);
 	}
 	
 	// Create a window to display the output
-	cvNamedWindow("Rovio Camera", CV_WINDOW_AUTOSIZE);
 	cvNamedWindow("Pink Squares", CV_WINDOW_AUTOSIZE);
 	cvNamedWindow("Threshold", CV_WINDOW_AUTOSIZE);
 	
@@ -343,11 +342,14 @@ void Robot::InitCamera()
 
 void Robot::CamNav()
 {
-	bool adjust_needed = false;
 	int direction;
+	bool adjust_needed = false;
 
 	do
 	{
+		if( !adjust_needed )
+			//robot->Move(RI_MOVE_FORWARD, RI_SLOWEST);
+
 		if(robot->update() != RI_RESP_SUCCESS) {
 			std::cout << "Failed to update sensor information!" << std::endl;
 			continue;
@@ -358,7 +360,6 @@ void Robot::CamNav()
 			std::cout << "Unable to capture an image!" << std::endl;
 			continue;
 		}
-		cvShowImage("Rovio Camera", m_pImage);
 
 		// construct filtered m_pImage
 		squares_t *pinkSquares = FindSquares( RC_PINK );
@@ -371,7 +372,7 @@ void Robot::CamNav()
 		cvShowImage("Threshold", m_pThreshold);
 
 		// Update the UI
-		cvWaitKey(10);
+		cvWaitKey(5);
 
 		// adjustment required if slope is within range
 		if ( slope <= SLOPE_RANGE && slope >= -SLOPE_RANGE )
@@ -383,8 +384,14 @@ void Robot::CamNav()
 			else
 				direction = RI_TURN_RIGHT;
 			
-			robot->Move(direction, 1);
+			robot->Move(direction, 4);
 			robot->Move(RI_STOP, 1);
+
+			adjust_needed = true;
+		}
+		else
+		{
+			adjust_needed = false;
 		}
 
 		// Release the square data
@@ -394,35 +401,41 @@ void Robot::CamNav()
 			pinkSquares = sq_tmp;
 		}
 
-	}while( !adjust_needed );
+	}while( 1 );
 }
 
 squares_t *Robot::FindSquares( int color )
 {
-	int i=0;
 	CvScalar lineColor;
 	squares_t *squares;
-
-	IplImage *pink = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
-	cvZero(pink);
+	
+	IplImage *pink1 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
+	IplImage *pink2 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
+	cvZero(pink1);
+	cvZero(pink2);
 
 	// Convert the m_pImage from RGB to HSV
     cvCvtColor(m_pImage, m_pHsv, CV_BGR2HSV);
-
-	// split into h, s, v
-	cvSplit(m_pHsv, m_pHue, m_pSat, m_pVal, 0);
 
 	// Pick out only the pink or yellow color from the m_pImage
 	if ( color == RC_PINK )
 	{
 		// filter threshold image
-		cvSmooth(m_pHue, pink, CV_MEDIAN, 7, 7);
-		cvInRangeS(pink, cvScalar((double)165), cvScalar((double)180), pink);
-		cvCopy(pink, m_pThreshold);
+		cvSmooth(m_pHsv, m_pHsv, CV_MEDIAN, 7, 7);
+
+		cvInRangeS(m_pHsv, cvScalar(150, 100, 100), cvScalar(180, 255, 255), pink1);
+		cvInRangeS(m_pHsv, cvScalar(0, 100, 100), cvScalar(15, 255, 255), pink2);
+		
+		cvOr(pink1, pink2, m_pThreshold);
+		cvOr(pink1, pink2, pink2);
 
 #ifdef DEBUG
-		cvNamedWindow("pink");
-		cvShowImage("pink", pink);
+		cvNamedWindow("pink1");
+		cvNamedWindow("pink2");
+		cvNamedWindow("hue");
+		cvShowImage("pink1", pink1);
+		cvShowImage("pink2", pink2);
+		cvShowImage("hue", m_pHue);
 #endif
 
 		lineColor = CV_RGB(0, 255, 0);
@@ -473,19 +486,21 @@ squares_t *Robot::GetBiggestSquares( squares_t *squares )
 	
 	if ( squares->next == NULL )
 		return biggest;
-	else
-		biggest->next = second;
 
 	// find second biggest square
 	while ( sq_tmp != NULL )
 	{
-		// copy contents of sq_tmp if bigger than current second, but smaller than biggest
-		if( sq_tmp->area > second->area && sq_tmp->area < biggest->area )
+		int dist = abs(biggest->center.x - sq_tmp->center.x);
+
+		// find second largest square, ignore squares that are too close
+		if( sq_tmp->area > second->area && sq_tmp->area < biggest->area && dist > 10 )
 		{
 			second->area = sq_tmp->area;
 			second->center.x = sq_tmp->center.x;
 			second->center.y = sq_tmp->center.y;
 			second->next = NULL;
+
+			biggest->next = second;
 		}
 
 		sq_tmp = sq_tmp->next;
@@ -522,11 +537,13 @@ double Robot::DrawCenterLine( squares_t *squares)
 	
 	CvPoint image_btm_center = cvPoint( 320, 480 );
 	
-	// if more than 1 square found, determine new line
-	if ( squares != NULL && squares->next != NULL )
-	{
+	// get biggest squares if any found
+	if ( squares != NULL )
 		biggest = GetBiggestSquares( squares );
 
+	// if more than 1 square found, determine new line
+	if ( biggest != NULL && biggest->next != NULL )
+	{
 		int dist = abs(biggest->center.x - biggest->next->center.x);
 
 		// only get new line if squares are not too close together
