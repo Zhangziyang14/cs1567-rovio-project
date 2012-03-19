@@ -343,7 +343,14 @@ void Robot::CamNav()
 	do
 	{
 		if( !adjust_needed )
+		{
 			robot->Move(RI_MOVE_FORWARD, RI_FASTEST);
+		}
+		else
+		{
+			robot->Move(direction, 4);
+			robot->Move(RI_STOP, 1);
+		}
 
 		if(robot->update() != RI_RESP_SUCCESS) {
 			std::cout << "Failed to update sensor information!" << std::endl;
@@ -376,9 +383,11 @@ void Robot::CamNav()
 		// draw line down image center
 		cvLine(m_pImage, cvPoint(320, 480), cvPoint(320, 0), CV_RGB(255, 0, 255), 3);
 
-		// Display the drawn-on image and the threshold
+		// Display the image(s)
 		cvShowImage("Pink Squares", m_pImage);
+#ifdef DEBUG
 		cvShowImage("Threshold", m_pThreshold);
+#endif
 		
 		// Update the UI
 		cvWaitKey(5);
@@ -388,7 +397,7 @@ void Robot::CamNav()
 		// adjustment required if slope is outside range or centerPoint is too far off center
 		bool isSlopeOutsideRange = slope >= SLOPE_RANGE || slope <= -SLOPE_RANGE;
 		bool centerOffset = centerPoint.x - 320;
-		if ( isSlopeOutsideRange == true || abs(centerOffset) > 160 )
+		if ( isSlopeOutsideRange == true || abs(centerOffset) > 100 )
 		{
 			if ( isSlopeOutsideRange == true )
 			{
@@ -402,15 +411,12 @@ void Robot::CamNav()
 			else
 			{
 				// left turn required
-				if ( centerOffset > 0 )
+				if ( centerOffset < 0 )
 					direction = RI_TURN_LEFT;
 				// right turn required
 				else
 					direction = RI_TURN_RIGHT;
 			}
-			
-			robot->Move(direction, 4);
-			robot->Move(RI_STOP, 1);
 
 			adjust_needed = true;
 		}
