@@ -318,40 +318,32 @@ void Robot::InitCamera()
 	cvNamedWindow("Pink Squares", CV_WINDOW_AUTOSIZE);
 	cvNamedWindow("Threshold", CV_WINDOW_AUTOSIZE);
 	
-	// Create an image to store the m_pImage from the camera
+	// Create an images
 	m_pImage = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
-
-	// Create an image to store the HSV version in
-	// We configured the camera for 640x480 above, so use that size here
 	m_pHsv = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
-	
-	// create h, s, and v images
-	m_pHue = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
-	m_pSat = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
-	m_pVal = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
-
-	// And an image for the thresholded version
 	m_pThreshold = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 1);
+	cvZero(m_pImage);
+	cvZero(m_pHsv);
+	cvZero(m_pThreshold);
 
 	// Move the head up to the middle position
 	robot->Move(RI_HEAD_MIDDLE, RI_FASTEST);
-
-	//set initial path center
-	m_CvPpath_center = cvPoint(320, 300);
 }
 
 void Robot::CamNav()
 {
-	int direction;
+	int direction = RI_MOVE_FORWARD;
 	bool adjust_needed = false;
 	
-	double slope;
+	double slope = 0.0;
 	CvPoint centerPoint;
 	
+	squares_t *biggest = NULL;
+
 	do
 	{
 		if( !adjust_needed )
-			//robot->Move(RI_MOVE_FORWARD, RI_SLOWEST);
+			robot->Move(RI_MOVE_FORWARD, RI_FASTEST);
 
 		if(robot->update() != RI_RESP_SUCCESS) {
 			std::cout << "Failed to update sensor information!" << std::endl;
@@ -368,11 +360,18 @@ void Robot::CamNav()
 		squares_t *pinkSquares = FindSquares( RC_PINK );
 		//squares_t *yelSquares = FindSquares( RC_YELLOW );
 		
-		int num_big;
-		squares_t *biggest = GetBiggestSquares( pinkSquares, &num_big );
+		biggest = GetBiggestPair( pinkSquares );
+
+		// if no pairs found
+		if ( biggest == NULL )
+			biggest = GetBiggestSquares( pinkSquares );
 		
-		if( num_big > 1 )
+		// if 2 squares found, draw line connecting them
+		if( biggest != NULL && biggest->next != NULL )
+		{
 			DrawSquareLine( biggest, &slope, &centerPoint );
+			DrawOnSquares( biggest, CV_RGB(255, 0, 0) );
+		}
 
 		// draw line down image center
 		cvLine(m_pImage, cvPoint(320, 480), cvPoint(320, 0), CV_RGB(255, 0, 255), 3);
@@ -405,11 +404,19 @@ void Robot::CamNav()
 			adjust_needed = false;
 		}
 
-		// Release the square data
+		// Release the square and image data
+		squares_t *sq_tmp;
 		while(pinkSquares != NULL) {
-			squares_t *sq_tmp = pinkSquares->next;
+			sq_tmp = pinkSquares->next;
 			delete(pinkSquares);
 			pinkSquares = sq_tmp;
+		}
+
+		while( biggest != NULL)
+		{
+			sq_tmp = biggest->next;
+			delete(biggest);
+			biggest = sq_tmp;
 		}
 
 		/*
@@ -442,16 +449,9 @@ squares_t *Robot::FindSquares( int color )
 		cvInRangeS(m_pHsv, cvScalar(0, 100, 100), cvScalar(15, 255, 255), pink2);
 		
 		cvOr(pink1, pink2, m_pThreshold);
-		cvOr(pink1, pink2, pink2);
 
-#ifdef DEBUG
-		cvNamedWindow("pink1");
-		cvNamedWindow("pink2");
-		cvNamedWindow("hue");
-		cvShowImage("pink1", pink1);
-		cvShowImage("pink2", pink2);
-		cvShowImage("hue", m_pHue);
-#endif
+		cvReleaseImage(&pink1);
+		cvReleaseImage(&pink2);
 
 		lineColor = CV_RGB(0, 255, 0);
 	}
@@ -474,7 +474,91 @@ squares_t *Robot::FindSquares( int color )
 	return squares;
 }
 
-squares_t *Robot::GetBiggestSquares( squares_t *squares, int *count )
+squares_t *Robot::GetBiggestPair( squares_t *squares)
+{
+	squares_t *sq_tmp = squares;
+	vector<squares_t *> sq_vector;
+	vector<squares_t *> sq_pairs_vector;
+	squares_t *pair1 = (squares_t *)malloc(sizeof(squares_t));
+	squares_t *pair2 = (squares_t *)malloc(sizeof(squares_t));
+
+	// if 1 or no squares, return NULL
+	if ( squares == NULL || squares->next == NULL )
+	{
+		return NULL;
+	}
+
+	// put squares into vector
+	while( sq_tmp != NULL )
+	{
+		sq_vector.push_back(sq_tmp);
+		sq_tmp = sq_tmp->next;
+	}
+
+	// iterate through vector, pulling out pairs
+	for( int i=0; i<sq_vector.size(); i++ )
+	{
+		for( int j=i+1; j<sq_vector.size(); j++ )
+		{
+			// determine pairs by dist between y coords, eliminate doubles by x coord
+			int yDist = abs(sq_vector[i]->center.y - sq_vector[j]->center.y);
+			int xDist = abs(sq_vector[i]->center.x - sq_vector[j]->center.x);
+
+			if ( yDist < 20 && xDist > 20 )
+			{
+				// copy pair values
+				pair2->area = sq_vector[j]->area;
+				pair2->center.x = sq_vector[j]->center.x;
+				pair2->center.y = sq_vector[j]->center.y;
+				pair2->next = NULL;
+				pair1->area = sq_vector[i]->area;
+				pair1->center.x = sq_vector[i]->center.x;
+				pair1->center.y = sq_vector[i]->center.y;
+				pair1->next = pair2;
+
+				sq_pairs_vector.push_back( pair1 );
+			}
+		}
+	}
+	
+	// if no pairs found, return NULL
+	if ( sq_pairs_vector.empty() )
+		return NULL;
+
+	// determine largest pair
+	int prev_largest_area = 0;
+	int largest_index = 0;
+	for( int i=0; i<sq_pairs_vector.size(); i++ )
+	{
+		if ( sq_pairs_vector[i]->area > prev_largest_area )
+		{
+			prev_largest_area = sq_pairs_vector[i]->area;
+			largest_index = i;
+		}
+	}
+
+#ifdef DEBUG
+		int i=0;
+		squares_t *sq_temp_debug = sq_pairs_vector[largest_index];
+
+		//print biggest info
+		printf("\n===== BIGGEST PAIR INFO =====\n");
+
+		while( sq_temp_debug != NULL )
+		{
+			printf("Square %d:\n", i);
+			printf("Center: (%d, %d)\n", sq_temp_debug->center.x, sq_temp_debug->center.y);
+			printf("Area: %d\n", sq_temp_debug->area);
+		
+			sq_temp_debug = sq_temp_debug->next;
+			i++;
+		}
+#endif
+
+	return sq_pairs_vector[largest_index];
+}
+
+squares_t *Robot::GetBiggestSquares( squares_t *squares )
 {
 	squares_t *sq_tmp = squares;
 	squares_t *biggest = (squares_t *)malloc(sizeof(squares_t));
@@ -486,7 +570,6 @@ squares_t *Robot::GetBiggestSquares( squares_t *squares, int *count )
 	// check for no squares
 	if ( squares == NULL )
 	{
-		*count = 0;
 		return NULL;
 	}
 
@@ -508,12 +591,7 @@ squares_t *Robot::GetBiggestSquares( squares_t *squares, int *count )
 	
 	// if only 1 square, return biggest w/ count 1
 	if ( squares->next == NULL )
-	{
-		DrawOnSquares( biggest, CV_RGB(255, 0, 0) );
-
-		*count = 1;
 		return biggest;
-	}
 
 	// find second biggest square
 	while ( sq_tmp != NULL )
@@ -534,8 +612,6 @@ squares_t *Robot::GetBiggestSquares( squares_t *squares, int *count )
 		sq_tmp = sq_tmp->next;
 	}
 
-	DrawOnSquares( biggest, CV_RGB(255, 0, 0) );
-
 #ifdef DEBUG
 		int i=0;
 		squares_t *sq_temp_debug = biggest;
@@ -553,7 +629,7 @@ squares_t *Robot::GetBiggestSquares( squares_t *squares, int *count )
 			i++;
 		}
 #endif
-	*count = 2;
+
 	return biggest;
 }
 
