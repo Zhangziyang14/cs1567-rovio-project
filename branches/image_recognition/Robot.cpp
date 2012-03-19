@@ -341,6 +341,9 @@ void Robot::CamNav()
 
 	do
 	{
+		//printf("X: %.3f Y: %.3f Theta: %.3f Room %d\n", robot->X(), robot->Y(), robot->Theta(), robot->RoomID());
+		//printf("Right: %d Left: %d Rear: %d\n", robot->getWheelEncoderTotals(RI_WHEEL_RIGHT), robot->getWheelEncoderTotals(RI_WHEEL_LEFT), robot->getWheelEncoderTotals(RI_WHEEL_REAR)); 
+
 		if( !adjust_needed )
 		{
 			robot->Move(RI_MOVE_FORWARD, RI_FASTEST);
@@ -365,6 +368,24 @@ void Robot::CamNav()
 		// construct filtered m_pImage
 		squares_t *pinkSquares = FindSquares( RC_PINK );
 		//squares_t *yelSquares = FindSquares( RC_YELLOW );
+
+		//if no squares found, aka end of path
+		if ( robot->IR_Detected() == true )
+		{
+			printf("IR Detected\n");
+			for( int i=0; i<10; i++ )
+			{
+				robot->Move(RI_MOVE_FORWARD, RI_FASTEST);
+			}
+			robot->Move(RI_STOP, RI_FASTEST);
+
+			for( int i=0; i<3; i++ )
+			{
+				robot->Move(RI_TURN_RIGHT, RI_FASTEST);
+			}
+			robot->Move(RI_STOP, RI_FASTEST);
+			continue;
+		}
 		
 		biggest = GetBiggestPair( pinkSquares );
 
@@ -402,6 +423,7 @@ void Robot::CamNav()
 
 		// Display the image(s)
 		cvShowImage("Pink Squares", m_pImage);
+
 #ifdef DEBUG
 		cvShowImage("Threshold", m_pThreshold);
 #endif
@@ -409,8 +431,11 @@ void Robot::CamNav()
 		// Update the UI
 		cvWaitKey(5);
 
+#ifdef DEBUG
 		printf("slope: %.3f\n", slope);
 		printf("centerPoint.x: %d\n", centerPoint.x);
+#endif
+
 		// adjustment required if slope is outside range or centerPoint is too far off center
 		bool isSlopeOutsideRange = slope >= SLOPE_TOLERANCE || slope <= -SLOPE_TOLERANCE;
 		bool centerOffset = centerPoint.x - 320;
@@ -456,11 +481,6 @@ void Robot::CamNav()
 			delete(biggest);
 			biggest = sq_tmp;
 		}
-
-		/*
-		printf("X: %.3f Y: %.3f Theta: %.3f Room %d\n", robot->X(), robot->Y(), robot->Theta(), robot->RoomID());
-		printf("Right: %d Left: %d Rear: %d\n", robot->getWheelEncoderTotals(RI_WHEEL_RIGHT), robot->getWheelEncoderTotals(RI_WHEEL_LEFT), robot->getWheelEncoderTotals(RI_WHEEL_REAR)); 
-		*/
 	}while( 1 );
 }
 
