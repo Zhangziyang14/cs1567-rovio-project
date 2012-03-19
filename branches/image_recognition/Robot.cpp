@@ -43,11 +43,8 @@ using namespace std;
 #define TORADIAN(x) ((float)(x*0.0174533))//turn degree to radian
 #define MINABS(x,y) (ABS(x)<ABS(y)?(x):(y))//return the one with lower absolute value
 
-
-/****** Image Recognition Macros ******/
-#define MY_PINK_LOW cvScalar(160, 0, 0)
-#define MY_PINK_HIGH cvScalar(179, 255, 255)
-#define SLOPE_RANGE 0.1
+#define SLOPE_TOLERANCE 0.1
+#define OFFSET_TOLERANCE 75
 
 // Constructor
 // Initializes values for Robot control
@@ -316,8 +313,10 @@ void Robot::InitCamera()
 	
 	// Create a window to display the output
 	cvNamedWindow("Pink Squares", CV_WINDOW_AUTOSIZE);
+#ifdef DEBUG
 	cvNamedWindow("Threshold", CV_WINDOW_AUTOSIZE);
-	
+#endif
+
 	// Create an images
 	m_pImage = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
 	m_pHsv = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
@@ -348,7 +347,7 @@ void Robot::CamNav()
 		}
 		else
 		{
-			robot->Move(direction, 4);
+			robot->Move(direction, 3);
 			robot->Move(RI_STOP, 1);
 		}
 
@@ -373,6 +372,24 @@ void Robot::CamNav()
 		if ( biggest == NULL )
 			biggest = GetBiggestSquares( pinkSquares );
 		
+		// if 1 square found 
+		if ( biggest != NULL && biggest->next == NULL )
+		{
+			// if square on left side of screen, turn right
+			if( biggest->center.x < 320 )
+				direction = RI_TURN_RIGHT;
+			else
+				direction = RI_TURN_LEFT;
+
+			// set adjust flag and continue
+			adjust_needed = true;
+			continue;
+		}
+		else
+		{
+			adjust_needed = false;
+		}
+
 		// if 2 squares found, draw line connecting them
 		if( biggest != NULL && biggest->next != NULL )
 		{
@@ -395,9 +412,9 @@ void Robot::CamNav()
 		printf("slope: %.3f\n", slope);
 		printf("centerPoint.x: %d\n", centerPoint.x);
 		// adjustment required if slope is outside range or centerPoint is too far off center
-		bool isSlopeOutsideRange = slope >= SLOPE_RANGE || slope <= -SLOPE_RANGE;
+		bool isSlopeOutsideRange = slope >= SLOPE_TOLERANCE || slope <= -SLOPE_TOLERANCE;
 		bool centerOffset = centerPoint.x - 320;
-		if ( isSlopeOutsideRange == true || abs(centerOffset) > 100 )
+		if ( isSlopeOutsideRange == true || abs(centerOffset) > OFFSET_TOLERANCE )
 		{
 			if ( isSlopeOutsideRange == true )
 			{
