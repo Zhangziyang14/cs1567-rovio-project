@@ -384,15 +384,30 @@ void Robot::CamNav()
 		cvWaitKey(5);
 
 		printf("slope: %.3f\n", slope);
-		// adjustment required if slope is outside range
-		if ( slope >= SLOPE_RANGE || slope <= -SLOPE_RANGE )
+		printf("centerPoint.x: %d\n", centerPoint.x);
+		// adjustment required if slope is outside range or centerPoint is too far off center
+		bool isSlopeOutsideRange = slope >= SLOPE_RANGE || slope <= -SLOPE_RANGE;
+		bool centerOffset = centerPoint.x - 320;
+		if ( isSlopeOutsideRange == true || abs(centerOffset) > 160 )
 		{
-			// left turn required
-			if ( slope > 0 )
-				direction = RI_TURN_LEFT;
-			// right turn required
+			if ( isSlopeOutsideRange == true )
+			{
+				// left turn required
+				if ( slope > 0 )
+					direction = RI_TURN_LEFT;
+				// right turn required
+				else
+					direction = RI_TURN_RIGHT;
+			}
 			else
-				direction = RI_TURN_RIGHT;
+			{
+				// left turn required
+				if ( centerOffset > 0 )
+					direction = RI_TURN_LEFT;
+				// right turn required
+				else
+					direction = RI_TURN_RIGHT;
+			}
 			
 			robot->Move(direction, 4);
 			robot->Move(RI_STOP, 1);
