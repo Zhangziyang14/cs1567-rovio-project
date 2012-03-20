@@ -26,24 +26,31 @@ protected:
     RobotInterface *robot;
     
     
-    float currWX;            //current X position using wheel encoder
-	float currWY;            //current Y position using wheel encoder
+    int currWX;            //current X position using wheel encoder
+	int currWY;            //current Y position using wheel encoder
 	float currWTheta;        //current theta using wheel encoder
     
-    float currNSX;            // The current North Star X-coordinate reading.
-	float currNSY;            // The current North Star Y-coordinate reading.
+    int currNSX;            // The current North Star X-coordinate reading.
+	int currNSY;            // The current North Star Y-coordinate reading.
 	float currNSTheta;        // The current North Star Theta reading.
-    
-	float prevNSX;            // The prev North Star X-coordinate reading.
-	float prevNSY;            // The prev North Star Y-coordinate reading.
+    int   currNSD;
+
+
+	int prevNSX;            // The prev North Star X-coordinate reading.
+	int prevNSY;            // The prev North Star Y-coordinate reading.
 	float prevNSTheta;        // The prev North Star Theta reading.
+	int   prevNSD;
+
+	int wheelR;
+	int wheelL;
+	int wheelB;
 
 
-
-    float finalX;
-    float finalY;
+    int finalX;
+    int finalY;
     float finalTheta;
-    
+    int finalD;
+
     int roomID;
     
 public:
@@ -64,8 +71,8 @@ private:
     void updateWE(int flag);
     void updateKalman();
     float CorrectTheta(float old, int roomID);
-	float WheelAverageX( float rightEncoder, float leftEncoder );
-	float WheelAverageY( float rightEncoder, float leftEncoder );
+	int WheelAverageX( float rightEncoder, float leftEncoder );
+	int WheelAverageY( float rightEncoder, float leftEncoder, float rear );
 };
 
 #endif

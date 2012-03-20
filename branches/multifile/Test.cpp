@@ -26,11 +26,13 @@ int main(int argv, char **argc) {
 	
 	robot->Init();
 	printf("done.\n");
+	
+	//robot->TurnTo(0);
 	robot->test();
 
-
-
-	//robot->TurnTo(200);
+	//robot->TurnTo(270);
+	//robot->TurnTo(90);
+	//robot->TurnTo(0);
     //robot->ReadData();
 	
     //robot->MoveTo(0,336);//base 1
