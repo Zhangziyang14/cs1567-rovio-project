@@ -10,6 +10,7 @@
 
 #include "robot_if++.h"
 #include "Fir.h"
+#include "robot_color.h"
 #include "FirTheta.h"
 #include "Kalman.h"
 
@@ -52,6 +53,22 @@ protected:
     int finalD;
 
     int roomID;
+
+
+	IplImage *m_pImage;
+    IplImage *m_pHsv;
+    IplImage *m_pThreshold;
+    IplImage *m_pHue;
+    IplImage *m_pSat;
+    IplImage *m_pVal;
+
+    CvPoint m_CvPpath_center;
+
+    int m_iDirection;
+    bool m_bAdjust;
+    double m_dSlope;
+    CvPoint m_CvPCenterPoint;
+    squares_t *m_pBiggest;
     
 public:
 	Robot(string);
@@ -63,6 +80,15 @@ public:
     void ReadData();
 	void test();
 	void move(int);
+
+	void InitCamera();
+    void CamCenter();
+    squares_t *FindSquares( int color );
+    squares_t *GetBiggestPair( squares_t *squares );
+    squares_t *GetBiggestSquares( squares_t *squares );
+    void DrawSquareLine( squares_t *squares, double *slope, CvPoint *centerPoint );
+    void DrawOnSquares( squares_t *squares, CvScalar lineColor );
+    bool DetermineAdjustment( squares_t *squares );
 	
 private:
     void NS_Rotate(int room);
@@ -74,6 +100,8 @@ private:
     float CorrectTheta(float old, int roomID);
 	int WheelAverageX( float rightEncoder, float leftEncoder );
 	int WheelAverageY( float rightEncoder, float leftEncoder, float rear );
+
+	int ListLength( squares_t *list );
 };
 
 #endif
