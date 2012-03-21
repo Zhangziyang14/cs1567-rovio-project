@@ -372,7 +372,7 @@ void Robot::ReadData(){
 		while(robot->update() != RI_RESP_SUCCESS) {cout << "Failed to update sensor information!" << endl;}
 		
 
-		//int degreeRaw = ((int)TODEGREE(robot->Theta()+ PI)+ (int)room2)%360;
+		int degreeRaw = ((int)TODEGREE(robot->Theta()+ PI));
 		int degree = (int)TODEGREE(CorrectTheta(robot->Theta()+ PI,robot->RoomID()));
 		int xns = xFilter->getValue(robot->X());
 		int yns = yFilter->getValue(robot->Y());
@@ -389,7 +389,7 @@ void Robot::ReadData(){
 
 		//double y = sin(TORADIAN(room2))*xns + yns*cos(TORADIAN(room2))*CM_PER_NS+5700;
 
-		sumd += degree;
+		sumd += degreeRaw;
 		sumX += xns;
 		sumY += yns;
 
@@ -397,7 +397,7 @@ void Robot::ReadData(){
 		sumRawY += yraw;
 
         printf("X: %5d(%6d), Y: %5d(%6d), degree:%3d(%3d), avg: %6d(%6d)|%6d(%6d)|%4d, signal %d-%6d\n",
-        			   xns,xraw,yns,yraw,degreeF,degree, sumX/step,sumRawX/step,sumY/step,sumRawY/step,sumd/step, roomID,robot->NavStrengthRaw());
+        			   xns,xraw,yns,yraw,degreeF,degreeRaw, sumX/step,sumRawX/step,sumY/step,sumRawY/step,sumd/step, roomID,robot->NavStrengthRaw());
         if(step%5==0){
 			//robot -> Move(RI_TURN_RIGHT, 2);
 		}
@@ -780,16 +780,16 @@ float Robot::CorrectTheta(float oldTheta, int roomID){
 	
 	switch(roomID) {
 		case 2: //room 2
-			newTheta = 360+255 - TODEGREE(oldTheta);
+			newTheta = 360+271 - TODEGREE(oldTheta);
 			break;
 		case 3: //room3
-			newTheta = 360+180 - TODEGREE(oldTheta);
+			newTheta = 360+183 - TODEGREE(oldTheta);
 			break;
 		case 4: //room 4
 			newTheta = 360+275 - TODEGREE(oldTheta);
 			break;
 		case 5: //room 5
-			newTheta = 360+4 - TODEGREE(oldTheta);
+			newTheta = 360+ 190 - TODEGREE(oldTheta);
 			break;
 		default:
 			//printf("room %d, Man, are you sure you are not in outer space!\n",roomID);
