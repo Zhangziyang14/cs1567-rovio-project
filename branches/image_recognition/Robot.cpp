@@ -241,6 +241,7 @@ void Robot::updateKalman(){
 }
 
 void Robot::Init(){ 
+
     
     /*********************
      Initialize Fir Filter
@@ -297,10 +298,6 @@ void Robot::Init(){
     #endif
 	
 	kf->initialize(initPose, velocity, deltat);
-	
-
-	
-    
 }
 
 void Robot::InitCamera()
@@ -316,6 +313,12 @@ void Robot::InitCamera()
 #ifdef DEBUG
 	cvNamedWindow("Threshold", CV_WINDOW_AUTOSIZE);
 #endif
+	
+	// Initialize correction data
+	m_iDirection = RI_MOVE_FORWARD;
+	m_bAdjust = false;
+	m_dSlope = 0.0;
+	squares_t *m_pBiggest = NULL;
 
 	// Create an images
 	m_pImage = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
@@ -329,159 +332,69 @@ void Robot::InitCamera()
 	robot->Move(RI_HEAD_MIDDLE, RI_FASTEST);
 }
 
-void Robot::CamNav()
+void Robot::CamCenter()
 {
-	int direction = RI_MOVE_FORWARD;
-	bool adjust_needed = false;
-	
-	double slope = 0.0;
-	CvPoint centerPoint;
-	
-	squares_t *biggest = NULL;
-
-	do
+	if( m_bAdjust )
 	{
-		//printf("X: %.3f Y: %.3f Theta: %.3f Room %d\n", robot->X(), robot->Y(), robot->Theta(), robot->RoomID());
-		//printf("Right: %d Left: %d Rear: %d\n", robot->getWheelEncoderTotals(RI_WHEEL_RIGHT), robot->getWheelEncoderTotals(RI_WHEEL_LEFT), robot->getWheelEncoderTotals(RI_WHEEL_REAR)); 
+		robot->Move(m_iDirection, 3);
+		robot->Move(RI_STOP, 1);
+	}
 
-		if( !adjust_needed )
-		{
-			robot->Move(RI_MOVE_FORWARD, RI_FASTEST);
-		}
-		else
-		{
-			robot->Move(direction, 3);
-			robot->Move(RI_STOP, 1);
-		}
+	if(robot->update() != RI_RESP_SUCCESS) {
+		std::cout << "Failed to update sensor information!" << std::endl;
+		return;
+	}
 
-		if(robot->update() != RI_RESP_SUCCESS) {
-			std::cout << "Failed to update sensor information!" << std::endl;
-			continue;
-		}
+	// Get the current camera m_pImage and display it
+	if(robot->getImage(m_pImage) != RI_RESP_SUCCESS) {
+		std::cout << "Unable to capture an image!" << std::endl;
+		return;
+	}
 
-		// Get the current camera m_pImage and display it
-		if(robot->getImage(m_pImage) != RI_RESP_SUCCESS) {
-			std::cout << "Unable to capture an image!" << std::endl;
-			continue;
-		}
-
-		// construct filtered m_pImage
-		squares_t *pinkSquares = FindSquares( RC_PINK );
-		//squares_t *yelSquares = FindSquares( RC_YELLOW );
-
-		//if no squares found, aka end of path
-		if ( robot->IR_Detected() == true )
-		{
-			printf("IR Detected\n");
-			for( int i=0; i<10; i++ )
-			{
-				robot->Move(RI_MOVE_FORWARD, RI_FASTEST);
-			}
-			robot->Move(RI_STOP, RI_FASTEST);
-
-			for( int i=0; i<3; i++ )
-			{
-				robot->Move(RI_TURN_RIGHT, RI_FASTEST);
-			}
-			robot->Move(RI_STOP, RI_FASTEST);
-			continue;
-		}
+	// construct filtered m_pImage
+	squares_t *pinkSquares = FindSquares( RC_PINK );
+	//squares_t *yelSquares = FindSquares( RC_YELLOW );
 		
-		biggest = GetBiggestPair( pinkSquares );
+	m_pBiggest = GetBiggestPair( pinkSquares );
 
-		// if no pairs found
-		if ( biggest == NULL )
-			biggest = GetBiggestSquares( pinkSquares );
-		
-		// if 1 square found 
-		if ( biggest != NULL && biggest->next == NULL )
-		{
-			// if square on left side of screen, turn right
-			if( biggest->center.x < 320 )
-				direction = RI_TURN_RIGHT;
-			else
-				direction = RI_TURN_LEFT;
+	// if no pairs found
+	if ( m_pBiggest == NULL )
+		m_pBiggest = GetBiggestSquares( pinkSquares );
 
-			// set adjust flag and continue
-			adjust_needed = true;
-			continue;
-		}
-		else
-		{
-			adjust_needed = false;
-		}
+	m_bAdjust = DetermineAdjustment( m_pBiggest );
 
-		// if 2 squares found, draw line connecting them
-		if( biggest != NULL && biggest->next != NULL )
-		{
-			DrawSquareLine( biggest, &slope, &centerPoint );
-			DrawOnSquares( biggest, CV_RGB(255, 0, 0) );
-		}
+	// draw line down image center
+	cvLine(m_pImage, cvPoint(320, 480), cvPoint(320, 0), CV_RGB(255, 0, 255), 3);
 
-		// draw line down image center
-		cvLine(m_pImage, cvPoint(320, 480), cvPoint(320, 0), CV_RGB(255, 0, 255), 3);
-
-		// Display the image(s)
-		cvShowImage("Pink Squares", m_pImage);
+	// Display the image(s)
+	cvShowImage("Pink Squares", m_pImage);
 
 #ifdef DEBUG
-		cvShowImage("Threshold", m_pThreshold);
+	cvShowImage("Threshold", m_pThreshold);
 #endif
 		
-		// Update the UI
-		cvWaitKey(5);
+	// Update the UI
+	cvWaitKey(5);
 
 #ifdef DEBUG
-		printf("slope: %.3f\n", slope);
-		printf("centerPoint.x: %d\n", centerPoint.x);
+	printf("m_dSlope: %.3f\n", m_dSlope);
+	printf("centerPoint.x: %d\n", centerPoint.x);
 #endif
 
-		// adjustment required if slope is outside range or centerPoint is too far off center
-		bool isSlopeOutsideRange = slope >= SLOPE_TOLERANCE || slope <= -SLOPE_TOLERANCE;
-		bool centerOffset = centerPoint.x - 320;
-		if ( isSlopeOutsideRange == true || abs(centerOffset) > OFFSET_TOLERANCE )
-		{
-			if ( isSlopeOutsideRange == true )
-			{
-				// left turn required
-				if ( slope > 0 )
-					direction = RI_TURN_LEFT;
-				// right turn required
-				else
-					direction = RI_TURN_RIGHT;
-			}
-			else
-			{
-				// left turn required
-				if ( centerOffset < 0 )
-					direction = RI_TURN_LEFT;
-				// right turn required
-				else
-					direction = RI_TURN_RIGHT;
-			}
+	// Release the square and image data
+	squares_t *sq_tmp;
+	while(pinkSquares != NULL) {
+		sq_tmp = pinkSquares->next;
+		delete(pinkSquares);
+		pinkSquares = sq_tmp;
+	}
 
-			adjust_needed = true;
-		}
-		else
-		{
-			adjust_needed = false;
-		}
-
-		// Release the square and image data
-		squares_t *sq_tmp;
-		while(pinkSquares != NULL) {
-			sq_tmp = pinkSquares->next;
-			delete(pinkSquares);
-			pinkSquares = sq_tmp;
-		}
-
-		while( biggest != NULL)
-		{
-			sq_tmp = biggest->next;
-			delete(biggest);
-			biggest = sq_tmp;
-		}
-	}while( 1 );
+	while( m_pBiggest != NULL)
+	{
+		sq_tmp = m_pBiggest->next;
+		delete(m_pBiggest);
+		m_pBiggest = sq_tmp;
+	}
 }
 
 squares_t *Robot::FindSquares( int color )
@@ -753,6 +666,67 @@ void Robot::DrawOnSquares( squares_t *squares, CvScalar lineColor )
 	}
 }
 
+bool Robot::DetermineAdjustment( squares_t *squares )
+{
+	bool adjust;
+
+	// if 1 square found 
+	if ( m_pBiggest != NULL && m_pBiggest->next == NULL )
+	{
+		// if square on left side of screen, turn right
+		if( m_pBiggest->center.x < 320 )
+			m_iDirection = RI_TURN_RIGHT;
+		else
+			m_iDirection = RI_TURN_LEFT;
+
+		// set adjust flag and continue
+		adjust = true;
+	}
+
+	// if 2 squares found, draw line connecting them
+	else if( m_pBiggest != NULL && m_pBiggest->next != NULL )
+	{
+		DrawSquareLine( m_pBiggest, &m_dSlope, &m_CvPCenterPoint );
+		DrawOnSquares( m_pBiggest, CV_RGB(255, 0, 0) );
+	}
+
+	
+	// adjustment required if m_dSlope is outside range or centerPoint is too far off center
+	bool isSlopeOutsideRange = m_dSlope >= SLOPE_TOLERANCE || m_dSlope <= -SLOPE_TOLERANCE;
+	bool centerOffset = m_CvPCenterPoint.x - 320;
+	if ( isSlopeOutsideRange == true || abs(centerOffset) > OFFSET_TOLERANCE )
+	{
+		if ( isSlopeOutsideRange == true )
+		{
+			// left turn required
+			if ( m_dSlope > 0 )
+				m_iDirection = RI_TURN_LEFT;
+			// right turn required
+			else
+				m_iDirection = RI_TURN_RIGHT;
+		}
+		else
+		{
+			// left turn required
+			if ( centerOffset < 0 )
+				m_iDirection = RI_TURN_LEFT;
+			// right turn required
+			else
+				m_iDirection = RI_TURN_RIGHT;
+		}
+
+		adjust = true;
+	}
+
+	// no squares found
+	else
+	{
+		adjust = false;
+	}
+
+	return adjust;
+}
+
 int Robot::ListLength( squares_t *list )
 {
 	squares_t *tmp = list;
@@ -933,12 +907,9 @@ void Robot::MoveTo(float targetX, float targetY){
 		}
 
 		// check for path center
-		CamNav();
+		CamCenter();
         
 	}while(1);
-
-    
-
 }
 
 void Robot::TurnTo(float target){ 
@@ -1045,7 +1016,7 @@ float Robot::WheelAverageX( float rightEncoder, float leftEncoder )
 	float rightFinal, leftFinal;
 	rightFinal = rightEncoder * cos( ANGLE_WHEEL_RIGHT );
 	leftFinal = leftEncoder * cos( ANGLE_WHEEL_LEFT );
-	//printf( "WheelAverageX():\nrightFinal: %.3f leftFinal: %.3f\n", rightFinal, leftFinal );
+	//printf( "WheelAverageX():\nrightFinal: %d leftFinal: %d\n", rightFinal, leftFinal );
 	return (rightFinal + leftFinal) / 2;
 }
 

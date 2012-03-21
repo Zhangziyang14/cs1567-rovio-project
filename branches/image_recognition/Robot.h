@@ -50,6 +50,12 @@ protected:
 	IplImage *m_pVal;
 
 	CvPoint m_CvPpath_center;
+
+	int m_iDirection;
+	bool m_bAdjust;
+	double m_dSlope;
+	CvPoint m_CvPCenterPoint;
+	squares_t *m_pBiggest;
     
 public:
 	Robot(string);
@@ -60,12 +66,13 @@ public:
     void Init();
     void ReadData();
 	void InitCamera();
-	void CamNav();
+	void CamCenter();
 	squares_t *FindSquares( int color );
 	squares_t *GetBiggestPair( squares_t *squares );
 	squares_t *GetBiggestSquares( squares_t *squares );
 	void DrawSquareLine( squares_t *squares, double *slope, CvPoint *centerPoint );
 	void DrawOnSquares( squares_t *squares, CvScalar lineColor );
+	bool DetermineAdjustment( squares_t *squares );
 
 	
 private:

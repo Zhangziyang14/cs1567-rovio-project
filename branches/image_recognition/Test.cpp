@@ -26,6 +26,7 @@ int main(int argv, char **argc)
 	robot->Init();
 	robot->InitCamera();
 
-	robot->CamNav();
- 
+	while(1){
+		robot->CamCenter();
+	}
 }
