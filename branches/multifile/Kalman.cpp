@@ -10,7 +10,7 @@
 #define FILTER_SIZE 9
 
 #define NORTHSTAR_UNCERTAINTY_X  .1 	// this is the uncertainty of the northstar readings, we are providing
-#define NORTHSTAR_UNCERTAINTY_Y  .2 	// you with the capability to independently set the x,y,and theta
+#define NORTHSTAR_UNCERTAINTY_Y  .5 	// you with the capability to independently set the x,y,and theta
 #define NORTHSTAR_UNCERTAINTY_TH .05
 
 #define WHEELENC_UNCERTAINTY_X  .05 	// this is the uncertainty of the wheel encoder readings, 

@@ -220,7 +220,6 @@ void Robot::updateNS(int flag){
 		currNSY = finalY + (-sin(currNSTheta) * NS_distance);
 		
 		printf("---------- updateNS ---------------\n");
-		printf("");
         printf("currNSX: %4d currNSY: %4d distance: %5.2f, curT:%5.2f st: %d\n",currNSX,currNSY,NS_distance,currNSTheta,robot->NavStrengthRaw());
 
 
@@ -236,15 +235,15 @@ void Robot::updateNS(int flag){
         int step = 0;
 		int curD = 0;
 		float curT = 0;
-        float sampleTheta;
+        //float sampleTheta;
         float newNSd;
 		int degree = (int)TODEGREE(CorrectTheta(robot->Theta()+ PI,robot->RoomID()));
-		int NSDraw = (int)TODEGREE(robot->Theta()+ PI);
+		//int NSDraw = (int)TODEGREE(robot->Theta()+ PI);
         
         do{
 			while(robot->update() != RI_RESP_SUCCESS) {cout << "Failed to update sensor information!" << endl;}
     
-			newNSd = TODEGREE(sampleTheta);//turn it into degrees
+			//newNSd = TODEGREE(sampleTheta);//turn it into degrees
 
 			degree = (int)TODEGREE(CorrectTheta(robot->Theta()+ PI,robot->RoomID()));
 			
@@ -255,7 +254,7 @@ void Robot::updateNS(int flag){
 			if(step>11){
 
 				curT += TORADIAN(newNSd);
-				curD += newNSd;
+				curD += newNSd; 
 			}
 			step++;
             
@@ -322,7 +321,7 @@ void Robot::updateWE(int flag){
 		wheelR = r;
 		wheelL = l;
 		wheelB = b;
-        //printf(" currWX:%5.2f currWY:%5.2f\n",moveX,moveY);
+        printf(" currWX:%5d currWY:%5d\n",currWX,currWY);
 	}
 	else if(ACTION_TURN == flag) {//it's a turn update
 		int b = robot -> getWheelEncoder(RI_WHEEL_REAR);
@@ -339,20 +338,34 @@ void Robot::updateKalman(){
     float currNS[3];
     float currWE[3];
     float kalmanResult[3];
-    
+
+	//
+	float vel[3] =  {0,0.44,0}; // velocity array
+    kf->rovioKalmanFilterSetVelocity(vel);
+
+
+	//
+
+
     currNS[0] = currNSX;
     currNS[1] = currNSY;
     currNS[2] = currNSTheta;
     
     currWE[0] = currWX;
     currWE[1] = currWY;
-    currWE[2] = currWTheta;
+    currWE[2] = currNSTheta;//currWTheta;
     
     kf->rovioKalmanFilter(currNS, currWE, kalmanResult);
     
-    finalX = kalmanResult[0];
-    finalY = kalmanResult[1];
+    finalX = (int)kalmanResult[0];
+    finalY = (int)kalmanResult[1];
     finalTheta = kalmanResult[2];
+
+	int degree = (int)TODEGREE(finalTheta);
+
+	printf("---------- updateKalman ---------------\n");
+        
+    printf("finalX: %5d, finalY:%5d finalDegree: %d \n",finalX,finalY,degree);
 
 }
 
@@ -396,7 +409,7 @@ void Robot::ReadData(){
 		sumRawX += xraw;
 		sumRawY += yraw;
 
-        printf("X: %5d(%6d), Y: %5d(%6d), degree:%3d(%3d), avg: %6d(%6d)|%6d(%6d)|%4d, signal %d-%6d\n",
+        printf("X: %5d(%6d), Y: %5d(%6d), degree:%3d(%3d), avg: %6ld(%6ld)|%6ld(%6ld)|%4ld, signal %d-%6d\n",
         			   xns,xraw,yns,yraw,degreeF,degreeRaw, sumX/step,sumRawX/step,sumY/step,sumRawY/step,sumd/step, roomID,robot->NavStrengthRaw());
         if(step%5==0){
 			//robot -> Move(RI_TURN_RIGHT, 2);
@@ -411,75 +424,38 @@ void Robot::test(){
 	for(int i=0; i<2; i++){
 		updateNS(ACTION_TURN);
 		updateWE(ACTION_MOVE);
+		//updateKalman();
 		robot->Move(RI_MOVE_BACKWARD,5);
 	}
 
 		updateNS(ACTION_TURN);
 		updateWE(ACTION_MOVE);
+		updateKalman();
 		robot->Move(RI_MOVE_FORWARD,5);
 		updateNS(ACTION_TURN);
 		updateWE(ACTION_MOVE);
+		updateKalman();
 		robot->Move(RI_MOVE_FORWARD,5);
 		updateNS(ACTION_MOVE);
 		updateNS(ACTION_MOVE);
 
-	do{
-		//updateWE(ACTION_MOVE);
-		//robot->Move(RI_MOVE_FORWARD,6);
+		//TurnTo(90);
+		//TurnTo(351);
 
-		//updateNS(ACTION_TURN);
-		//printf("currNSD: %d (%d)\n",currNSD,currNSD-prevNSD);
-		
-		updateNS(ACTION_MOVE);
-		updateWE(ACTION_MOVE);
-		printf("currWX: %4d currWY: %4d\n",currWX,currWY);
-		robot->Move(RI_MOVE_FORWARD,5);
-		//robot->Move(RI_TURN_RIGHT,6);
 
-		if(currWY<-100){
-			break;
-		}
-		
+		move(100);
+		updateNS(ACTION_TURN);
+		move(220);
+		updateNS(ACTION_TURN);
+		//TurnTo(90);
+		move(385);
+		updateNS(ACTION_TURN);
 
-		prevNSD = currNSD;
-	}
-	while(1);
+		TurnTo(90);
 
-	updateNS(ACTION_TURN);
+		updateNS(ACTION_TURN);
+		move(750);
 
-		do{
-		
-		updateNS(ACTION_MOVE);
-		updateWE(ACTION_MOVE);
-		printf("currWX: %4d currWY: %4d\n",currWX,currWY);
-		robot->Move(RI_MOVE_FORWARD,5);
-
-		if(currWY<-200){
-			break;
-		}
-		
-
-		prevNSD = currNSD;
-	}
-	while(1);
-
-	updateNS(ACTION_TURN);
-
-		do{
-		
-		updateNS(ACTION_MOVE);
-		updateWE(ACTION_MOVE);
-		printf("currWX: %4d currWY: %4d\n",currWX,currWY);
-		robot->Move(RI_MOVE_FORWARD,5);
-
-		if(currWY<-305){
-			break;
-		}
-		
-
-		prevNSD = currNSD;
-	}
-	while(1);
 
 }
 
@@ -552,6 +528,29 @@ void Robot::Init(){
 
 	
     
+}
+
+void Robot::move(int target){
+	updateNS(ACTION_TURN);
+
+	do{
+		
+		updateNS(ACTION_MOVE);
+		updateWE(ACTION_MOVE);
+		updateKalman();
+		//printf("currWX: %4d currWY: %4d\n",currWX,currWY);
+		robot->Move(RI_MOVE_FORWARD,5);
+
+		if(finalY<-target){
+			break;
+		}
+		
+
+		prevNSD = currNSD;
+	}
+	while(1);
+
+
 }
 
 void Robot::MoveTo(float targetX, float targetY){
@@ -709,7 +708,7 @@ void Robot::TurnTo(float target){
 	int turn_speed = 8;
 	int turn_flag = RI_TURN_LEFT;//set initial turn flag to turn left
     float pid_val; //pid value
-	float vel[3]; // velocity array
+	//float vel[3]; // velocity array
 	
 	do {
         // data sample collecting

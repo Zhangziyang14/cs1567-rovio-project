@@ -28,12 +28,12 @@ int main(int argv, char **argc) {
 	printf("done.\n");
 	
 	//robot->TurnTo(0);
-	//robot->test();
+	robot->test();
 
-	robot->TurnTo(270);
-	robot->TurnTo(90);
-	robot->TurnTo(0);
-    robot->ReadData();
+	//robot->TurnTo(270);
+	//robot->TurnTo(90);
+	//robot->TurnTo(0);
+    //robot->ReadData();
 	
     //robot->MoveTo(0,336);//base 1
 	//robot->TurnTo(145);

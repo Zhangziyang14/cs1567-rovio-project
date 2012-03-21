@@ -62,6 +62,7 @@ public:
     void Init();
     void ReadData();
 	void test();
+	void move(int);
 	
 private:
     void NS_Rotate(int room);
