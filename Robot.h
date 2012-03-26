@@ -10,9 +10,10 @@
 
 #include "robot_if++.h"
 #include "Fir.h"
-#include "robot_color.h"
 #include "FirTheta.h"
+#include "PID.h"
 #include "Kalman.h"
+#include "Camera.h"
 
 class Robot
 {
@@ -26,7 +27,6 @@ protected:
     Kalman *kf;
     RobotInterface *robot;
     
-    
     int currWX;            //current X position using wheel encoder
 	int currWY;            //current Y position using wheel encoder
 	float currWTheta;        //current theta using wheel encoder
@@ -35,7 +35,6 @@ protected:
 	int currNSY;            // The current North Star Y-coordinate reading.
 	float currNSTheta;        // The current North Star Theta reading.
     int   currNSD;
-
 
 	int prevNSX;            // The prev North Star X-coordinate reading.
 	int prevNSY;            // The prev North Star Y-coordinate reading.
@@ -46,7 +45,6 @@ protected:
 	int wheelL;
 	int wheelB;
 
-
     int finalX;
     int finalY;
     float finalTheta;
@@ -54,21 +52,7 @@ protected:
 
     int roomID;
 
-
-	IplImage *m_pImage;
-    IplImage *m_pHsv;
-    IplImage *m_pThreshold;
-    IplImage *m_pHue;
-    IplImage *m_pSat;
-    IplImage *m_pVal;
-
-    CvPoint m_CvPpath_center;
-
-    int m_iDirection;
-    bool m_bAdjust;
-    double m_dSlope;
-    CvPoint m_CvPCenterPoint;
-    squares_t *m_pBiggest;
+	Camera *m_camera;
     
 public:
 	Robot(string);
@@ -80,15 +64,6 @@ public:
     void ReadData();
 	void test();
 	void move(int);
-
-	void InitCamera();
-    void CamCenter();
-    squares_t *FindSquares( int color );
-    squares_t *GetBiggestPair( squares_t *squares );
-    squares_t *GetBiggestSquares( squares_t *squares );
-    void DrawSquareLine( squares_t *squares, double *slope, CvPoint *centerPoint );
-    void DrawOnSquares( squares_t *squares, CvScalar lineColor );
-    bool DetermineAdjustment( squares_t *squares );
 	
 private:
     void NS_Rotate(int room);
@@ -100,8 +75,6 @@ private:
     float CorrectTheta(float old, int roomID);
 	int WheelAverageX( float rightEncoder, float leftEncoder );
 	int WheelAverageY( float rightEncoder, float leftEncoder, float rear );
-
-	int ListLength( squares_t *list );
 };
 
 #endif
