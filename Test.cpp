@@ -1,4 +1,4 @@
-/** * * * * * * * * * * * * * * * * * * * * *
+﻿/** * * * * * * * * * * * * * * * * * * * * *
  * test.cpp									*
  * Created: 3/12/2012						*
  * Authors: CJ McAllister, Yuxin Liu         *
