@@ -27,6 +27,7 @@ protected:
     double m_dSlope;
     CvPoint m_CvPCenterPoint;
     squares_t *m_pBiggest;
+	squares_t *m_pSquares;
 
 public:
 	Camera();
@@ -34,9 +35,11 @@ public:
 
 	void InitCamera( RobotInterface *robot );
     void CamCenter();
-    squares_t *FindSquares( int color );
-    squares_t *GetBiggestPair( squares_t *squares );
-    squares_t *GetBiggestSquares( squares_t *squares );
+    int GetSortedSquares( squares_t *squares_found );
+	void MergeSortSquares( squares_t **unsorted_squares );
+	void SplitSquares(squares_t *source, squares_t **frontRef, squares_t **backRef);
+	squares_t *MergeSquares( squares_t *a, squares_t *b );
+	int DetermineFSMState( squares_t *squares );
     void DrawSquareLine( squares_t *squares, double *slope, CvPoint *centerPoint );
     void DrawOnSquares( squares_t *squares, CvScalar lineColor );
     bool DetermineAdjustment( squares_t *squares );
