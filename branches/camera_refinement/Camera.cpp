@@ -10,8 +10,13 @@
 
 #include "Camera.h"
 
-#define SLOPE_TOLERANCE 0.1
+#define SLOPE_TOLERANCE	 0.1
 #define OFFSET_TOLERANCE 30
+
+#define FSM_NO_SQUARES	0x00
+#define FSM_ONE_SQUARE  0x01
+#define FSM_PAIR		0x02
+#define FSM_NO_PAIR		0x03
 
 using namespace std;
 
@@ -50,6 +55,8 @@ void Camera::InitCamera( RobotInterface *robot )
     cvNamedWindow("Pink Squares", CV_WINDOW_AUTOSIZE);
 #ifdef DEBUG
     cvNamedWindow("Threshold", CV_WINDOW_AUTOSIZE);
+    cvNamedWindow("pink1", CV_WINDOW_AUTOSIZE);
+    cvNamedWindow("pink2", CV_WINDOW_AUTOSIZE);
 #endif
         
     // Initialize correction data
@@ -67,41 +74,56 @@ void Camera::InitCamera( RobotInterface *robot )
     m_robot->Move(RI_HEAD_MIDDLE, RI_FASTEST);
 }
 
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+  * void CamCenter()													*
+  *																*
+  * Centers robot in path using squares found in camera input	*
+  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 void Camera::CamCenter()
 {
-        if( m_bAdjust )
-        {
-                m_robot->Move(m_iDirection, 3);
-                m_robot->Move(RI_STOP, 1);
-        }
+	int fsmCode;
+	m_bAdjust = true;
 
+	while( m_bAdjust ){
         if(m_robot->update() != RI_RESP_SUCCESS) {
-                std::cout << "Failed to update sensor information!" << std::endl;
-                return;
+            std::cout << "Failed to update sensor information!" << std::endl;
+            continue;
         }
 
         // Get the current camera m_pImage and display it
         if(m_robot->getImage(m_pImage) != RI_RESP_SUCCESS) {
-                std::cout << "Unable to capture an image!" << std::endl;
-                return;
+            std::cout << "Unable to capture an image!" << std::endl;
+            continue;
         }
+        
+		// handle biggest squares based on fsmCode
+        fsmCode = GetSortedSquares( m_pSquares );
+		switch( fsmCode )
+		{
+			case FSM_NO_SQUARES:
+				cout << "FSM_NO_SQUARES" << endl;
+				continue;
+			case FSM_ONE_SQUARE:
+				cout << "FSM_ONE_SQUARES" << endl;
+				m_pBiggest = m_pSquares;
+				break;
+			case FSM_PAIR:
+				cout << "FSM_PAIR" << endl;
+				m_pBiggest = m_pSquares;
+				m_pBiggest->next->next = NULL;
+				break;
+			case FSM_NO_PAIR:
+				cout << "FSM_NO_PAIR" << endl;
+				m_pBiggest = m_pSquares;
+				m_pBiggest->next->next = NULL;
+				break;
+			default:
+				cout << "FSM error. Exiting" << endl;
+				exit(-1);
+		}
 
-        // construct filtered m_pImage
-        squares_t *pinkSquares = FindSquares( RC_PINK );
-        //squares_t *yelSquares = FindSquares( RC_YELLOW );
-                
-        m_pBiggest = GetBiggestPair( pinkSquares );
-
-        // if no pairs found
-        if ( m_pBiggest == NULL )
-                m_pBiggest = GetBiggestSquares( pinkSquares );
-
-        m_bAdjust = DetermineAdjustment( m_pBiggest );
-
-        // draw line down image center
+        // Display the image
         cvLine(m_pImage, cvPoint(320, 480), cvPoint(320, 0), CV_RGB(255, 0, 255), 3);
-
-        // Display the image(s)
         cvShowImage("Pink Squares", m_pImage);
 
 #ifdef DEBUG
@@ -118,225 +140,186 @@ void Camera::CamCenter()
 
         // Release the square and image data
         squares_t *sq_tmp;
-        while(pinkSquares != NULL) {
-                sq_tmp = pinkSquares->next;
-                delete(pinkSquares);
-                pinkSquares = sq_tmp;
+        while(m_pSquares != NULL) {
+            sq_tmp = m_pSquares->next;
+            delete(m_pSquares);
+            m_pSquares = sq_tmp;
         }
 
         while( m_pBiggest != NULL)
         {
-                sq_tmp = m_pBiggest->next;
-                delete(m_pBiggest);
-                m_pBiggest = sq_tmp;
+            sq_tmp = m_pBiggest->next;
+            delete(m_pBiggest);
+            m_pBiggest = sq_tmp;
         }
+
+        m_bAdjust = DetermineAdjustment( m_pBiggest );
+		
+        if( m_bAdjust )
+        {
+            m_robot->Move(m_iDirection, 3);
+            m_robot->Move(RI_STOP, 1);
+        }
+	}
 }
 
-squares_t *Camera::FindSquares( int color )
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+  * int GetSortedSquares( squares_t *squares_found )						*
+  *																			*
+  * Locates and sorts pink squares in camera input, draws green X's on all.	*
+  * Determines how many found and if a pair is present.						*
+  * Returns code for state machine, also output parameter is squares found	*
+  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+int Camera::GetSortedSquares( squares_t *squares_found )
 {
-        CvScalar lineColor;
-        squares_t *squares;
-        
-        IplImage *pink1 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
-        IplImage *pink2 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
-        cvZero(pink1);
-        cvZero(pink2);
+	int fsmState;
 
-        // Convert the m_pImage from RGB to HSV
+    CvScalar lineColor;
+        
+    IplImage *pink1 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
+    IplImage *pink2 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
+    cvZero(pink1);
+    cvZero(pink2);
+
+    // Convert the m_pImage from RGB to HSV
     cvCvtColor(m_pImage, m_pHsv, CV_BGR2HSV);
 
-        // Pick out only the pink or yellow color from the m_pImage
-        if ( color == RC_PINK )
-        {
-                // filter threshold image
-                cvSmooth(m_pHsv, m_pHsv, CV_MEDIAN, 7, 7);
-
-                cvInRangeS(m_pHsv, cvScalar(150, 100, 100), cvScalar(180, 255, 255), pink1);
-                cvInRangeS(m_pHsv, cvScalar(0, 100, 100), cvScalar(15, 255, 255), pink2);
-                
-                cvOr(pink1, pink2, m_pThreshold);
-
-                cvReleaseImage(&pink1);
-                cvReleaseImage(&pink2);
-
-                lineColor = CV_RGB(0, 255, 0);
-        }
-        else if ( color == RC_YELLOW )
-        {
-                cvInRangeS(m_pHsv, RC_YELLOW_LOW, RC_YELLOW_HIGH, m_pThreshold);
-                lineColor = CV_RGB(0, 0, 255);
-        }
-        else
-        {
-                printf("Bad color code. Exiting.\n");
-                exit(-1);
-        }
-        
-        // Find the squares in the m_pImage
-        squares = m_robot->findSquares(m_pThreshold, 300);
-
-        DrawOnSquares(squares, lineColor);
-
-        return squares;
-}
-
-squares_t *Camera::GetBiggestPair( squares_t *squares)
-{
-        squares_t *sq_tmp = squares;
-        vector<squares_t *> sq_vector;
-        vector<squares_t *> sq_pairs_vector;
-        squares_t *pair1 = (squares_t *)malloc(sizeof(squares_t));
-        squares_t *pair2 = (squares_t *)malloc(sizeof(squares_t));
-
-        // if 1 or no squares, return NULL
-        if ( squares == NULL || squares->next == NULL )
-        {
-                return NULL;
-        }
-
-        // put squares into vector
-        while( sq_tmp != NULL )
-        {
-                sq_vector.push_back(sq_tmp);
-                sq_tmp = sq_tmp->next;
-        }
-
-        // iterate through vector, pulling out pairs
-        for( int i=0; i<sq_vector.size(); i++ )
-        {
-                for( int j=i+1; j<sq_vector.size(); j++ )
-                {
-                        // determine pairs by dist between y coords, eliminate doubles by x coord
-                        int yDist = abs(sq_vector[i]->center.y - sq_vector[j]->center.y);
-                        int xDist = abs(sq_vector[i]->center.x - sq_vector[j]->center.x);
-
-                        if ( yDist < 20 && xDist > 20 )
-                        {
-                                // copy pair values
-                                pair2->area = sq_vector[j]->area;
-                                pair2->center.x = sq_vector[j]->center.x;
-                                pair2->center.y = sq_vector[j]->center.y;
-                                pair2->next = NULL;
-                                pair1->area = sq_vector[i]->area;
-                                pair1->center.x = sq_vector[i]->center.x;
-                                pair1->center.y = sq_vector[i]->center.y;
-                                pair1->next = pair2;
-
-                                sq_pairs_vector.push_back( pair1 );
-                        }
-                }
-        }
-        
-        // if no pairs found, return NULL
-        if ( sq_pairs_vector.empty() )
-                return NULL;
-
-        // determine largest pair
-        int prev_largest_area = 0;
-        int largest_index = 0;
-        for( int i=0; i<sq_pairs_vector.size(); i++ )
-        {
-                if ( sq_pairs_vector[i]->area > prev_largest_area )
-                {
-                        prev_largest_area = sq_pairs_vector[i]->area;
-                        largest_index = i;
-                }
-        }
+    // filter and combine for threshold image
+    cvSmooth(m_pHsv, m_pHsv, CV_MEDIAN, 7, 7);
+    cvInRangeS(m_pHsv, cvScalar(150, 100, 100), cvScalar(180, 255, 255), pink1);
+    cvInRangeS(m_pHsv, cvScalar(0, 100, 100), cvScalar(15, 255, 255), pink2);
+    cvOr(pink1, pink2, m_pThreshold);
 
 #ifdef DEBUG
-                int i=0;
-                squares_t *sq_temp_debug = sq_pairs_vector[largest_index];
-
-                //print biggest info
-                printf("\n===== BIGGEST PAIR INFO =====\n");
-
-                while( sq_temp_debug != NULL )
-                {
-                        printf("Square %d:\n", i);
-                        printf("Center: (%d, %d)\n", sq_temp_debug->center.x, sq_temp_debug->center.y);
-                        printf("Area: %d\n", sq_temp_debug->area);
-                
-                        sq_temp_debug = sq_temp_debug->next;
-                        i++;
-                }
+        cvShowImage("pink1", pink1);
+        cvShowImage("pink2", pink2);
 #endif
 
-        return sq_pairs_vector[largest_index];
+    cvReleaseImage(&pink1);
+    cvReleaseImage(&pink2);
+        
+    // Find and sort the squares in the m_pImage, then draw X's
+    squares_found = m_robot->findSquares(m_pThreshold, 300);
+	MergeSortSquares( &squares_found );
+    DrawOnSquares(squares_found, CV_RGB(0, 255, 0));
+
+	// determine return code
+	fsmState = DetermineFSMState(squares_found);
+
+	return fsmState;
 }
 
-squares_t *Camera::GetBiggestSquares( squares_t *squares )
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+  * void MergeSortSquares( squares_t *unsorted_squares )			*
+  *																	*
+  * Takes in an unsorted linked list of squares_t * and returns as	*
+  * a sorted vector<squares_t *>									*
+  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+void Camera::MergeSortSquares( squares_t **unsorted_squares )
 {
-        squares_t *sq_tmp = squares;
-        squares_t *biggest = (squares_t *)malloc(sizeof(squares_t));
-        squares_t *second = (squares_t *)malloc(sizeof(squares_t));
+	squares_t *head = *unsorted_squares;
+	squares_t *a;
+	squares_t *b;
+ 
+	// Base case
+	if ((head == NULL) || (head->next == NULL))
+		return;
+ 
+	// Split head into 'a' and 'b' sublists
+	SplitSquares(head, &a, &b); 
+ 
+	// Recursively sort sublists
+	MergeSortSquares(&a);
+	MergeSortSquares(&b);
+ 
+	// merge sorted lists together
+	*unsorted_squares = MergeSquares(a, b);
+}
 
-        biggest->area = 0;
-        second->area = 0;
+void Camera::SplitSquares(squares_t *source, squares_t **frontRef, squares_t **backRef)
+{
+	squares_t *big;
+	squares_t *small;
 
-        // check for no squares
-        if ( squares == NULL )
-        {
-                return NULL;
-        }
+	// length < 2 cases
+	if (source==NULL || source->next==NULL)
+	{
+		*frontRef = source;
+		*backRef = NULL;
+	}
+	else
+	{
+		small = source;
+		big = source->next;
+ 
+		// Advance 'big' two nodes, and advance 'small' one node
+		while (big != NULL)
+		{
+			big = big->next;
+			if (big != NULL)
+			{
+			small = small->next;
+			big = big->next;
+			}
+		}
+ 
+		// 'small' is before midpoint, so split it in two at that point
+		*frontRef = source;
+		*backRef = small->next;
+		small->next = NULL;
+	}
+}
 
-        // find biggest square
-        while( sq_tmp != NULL )
-        {
-                // copy contents of sq_tmp if bigger than current biggest
-                if( sq_tmp->area > biggest->area )
-                {
-                        biggest->area = sq_tmp->area;
-                        biggest->center.x = sq_tmp->center.x;
-                        biggest->center.y = sq_tmp->center.y;
-                        biggest->next = NULL;
-                }
+squares_t *Camera::MergeSquares( squares_t *a, squares_t *b )
+{
+	squares_t *result = NULL;
+ 
+	/* Base cases */
+	if (a == NULL)
+		return b;
+	else if (b==NULL)
+		return a;
+ 
+	/* Pick either a or b, and recurse */
+	if (a->area >= b->area)
+	{
+		result = a;
+		result->next = MergeSquares(a->next, b);
+	}
+	else
+	{
+		result = b;
+		result->next = MergeSquares(a, b->next);
+	}
+	return result;
+}
 
-                sq_tmp = sq_tmp->next;
-        }
-        sq_tmp = squares;
-        
-        // if only 1 square, return biggest w/ count 1
-        if ( squares->next == NULL )
-                return biggest;
+int Camera::DetermineFSMState( squares_t *squares )
+{
+	int i=0;
+	cout << "DetermineFSMState:" << endl;
+	squares_t *tmp = squares;
+	while(tmp != NULL && tmp->next != NULL){
+		cout << "square" << i << " area: " << tmp->area << " coords: (" << tmp->center.x << ", " << tmp->center.y << ")" << endl;
+		tmp = tmp->next;
+		i++;
+	}
 
-        // find second biggest square
-        while ( sq_tmp != NULL )
-        {
-                int dist = abs(biggest->center.x - sq_tmp->center.x);
+	// no squares found
+	if ( squares == NULL )
+		return FSM_NO_SQUARES;
 
-                // find second largest square, ignore squares that are too close
-                if( sq_tmp->area > second->area && sq_tmp->area < biggest->area && dist > 10 )
-                {
-                        second->area = sq_tmp->area;
-                        second->center.x = sq_tmp->center.x;
-                        second->center.y = sq_tmp->center.y;
-                        second->next = NULL;
+	// 1 square found
+	if (squares->next == NULL )
+		return FSM_ONE_SQUARE;
 
-                        biggest->next = second;
-                }
+	// pair found
+	if ( abs(squares->center.y - squares->next->center.y) <= 15 )
+		return FSM_PAIR;
 
-                sq_tmp = sq_tmp->next;
-        }
-
-#ifdef DEBUG
-                int i=0;
-                squares_t *sq_temp_debug = biggest;
-
-                //print biggest info
-                printf("\n===== BIGGEST SQUARES INFO =====\n");
-
-                while( sq_temp_debug != NULL )
-                {
-                        printf("Square %d:\n", i);
-                        printf("Center: (%d, %d)\n", sq_temp_debug->center.x, sq_temp_debug->center.y);
-                        printf("Area: %d\n", sq_temp_debug->area);
-                
-                        sq_temp_debug = sq_temp_debug->next;
-                        i++;
-                }
-#endif
-
-        return biggest;
+	// 2+ squares, but biggest not paired
+	else
+		return FSM_NO_PAIR;
 }
 
 /**
