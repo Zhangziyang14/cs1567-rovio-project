@@ -22,22 +22,19 @@ using namespace std;
 
 
 Camera::Camera()
-{
-	m_robot;
-
+{	
     m_pImage = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
     m_pHsv = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
     m_pThreshold = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 1);
 
-    m_CvPpath_center = cvPoint(0, 0);
-
     m_CvPCenterPoint = cvPoint(0, 0);
-    m_pBiggest = (squares_t *)malloc(2 * sizeof(squares_t));
 }
 
 Camera::~Camera()
 {
-
+	cvReleaseImage(&m_pImage);
+	cvReleaseImage(&m_pHsv);
+	cvReleaseImage(&m_pThreshold);
 }
 
 void Camera::InitCamera( RobotInterface *robot )
@@ -63,7 +60,6 @@ void Camera::InitCamera( RobotInterface *robot )
     m_iDirection = RI_MOVE_FORWARD;
     m_bAdjust = false;
     m_dSlope = 0.0;
-    squares_t *m_pBiggest = NULL;
 
     // zero out images
     cvZero(m_pImage);
@@ -85,11 +81,12 @@ void Camera::CamCenter()
 	m_bAdjust = true;
 
 	while( m_bAdjust ){
+
         if(m_robot->update() != RI_RESP_SUCCESS) {
             std::cout << "Failed to update sensor information!" << std::endl;
             continue;
         }
-
+		
         // Get the current camera m_pImage and display it
         if(m_robot->getImage(m_pImage) != RI_RESP_SUCCESS) {
             std::cout << "Unable to capture an image!" << std::endl;
@@ -97,25 +94,22 @@ void Camera::CamCenter()
         }
         
 		// handle biggest squares based on fsmCode
-        fsmCode = GetSortedSquares( m_pSquares );
+        m_vSquares = GetSortedSquares( &fsmCode );
+
 		switch( fsmCode )
 		{
 			case FSM_NO_SQUARES:
-				cout << "FSM_NO_SQUARES" << endl;
 				continue;
 			case FSM_ONE_SQUARE:
-				cout << "FSM_ONE_SQUARES" << endl;
-				m_pBiggest = m_pSquares;
+				m_vBiggest.push_back(m_vSquares[0]);
 				break;
 			case FSM_PAIR:
-				cout << "FSM_PAIR" << endl;
-				m_pBiggest = m_pSquares;
-				m_pBiggest->next->next = NULL;
+				m_vBiggest.push_back(m_vSquares[0]);
+				m_vBiggest.push_back(m_vSquares[1]);
 				break;
 			case FSM_NO_PAIR:
-				cout << "FSM_NO_PAIR" << endl;
-				m_pBiggest = m_pSquares;
-				m_pBiggest->next->next = NULL;
+				m_vBiggest.push_back(m_vSquares[0]);
+				m_vBiggest.push_back(m_vSquares[1]);
 				break;
 			default:
 				cout << "FSM error. Exiting" << endl;
@@ -136,24 +130,9 @@ void Camera::CamCenter()
 #ifdef DEBUG
         printf("m_dSlope: %.3f\n", m_dSlope);
         printf("centerPoint.x: %d\n", m_CvPCenterPoint.x);
-#endif
-
-        // Release the square and image data
-        squares_t *sq_tmp;
-        while(m_pSquares != NULL) {
-            sq_tmp = m_pSquares->next;
-            delete(m_pSquares);
-            m_pSquares = sq_tmp;
-        }
-
-        while( m_pBiggest != NULL)
-        {
-            sq_tmp = m_pBiggest->next;
-            delete(m_pBiggest);
-            m_pBiggest = sq_tmp;
-        }
-
-        m_bAdjust = DetermineAdjustment( m_pBiggest );
+#endif   
+		// determine if adjust needed based on squares in m_vBiggest
+        DetermineAdjustment( );
 		
         if( m_bAdjust )
         {
@@ -164,17 +143,16 @@ void Camera::CamCenter()
 }
 
 /** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-  * int GetSortedSquares( squares_t *squares_found )						*
+  * vector<squares_t *> GetSortedSquares( int *fsmCode )						*
   *																			*
   * Locates and sorts pink squares in camera input, draws green X's on all.	*
   * Determines how many found and if a pair is present.						*
   * Returns code for state machine, also output parameter is squares found	*
   * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-int Camera::GetSortedSquares( squares_t *squares_found )
+vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
 {
-	int fsmState;
-
-    CvScalar lineColor;
+	squares_t *tmpSquares;
+	vector<squares_t *> vSquares;
         
     IplImage *pink1 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
     IplImage *pink2 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
@@ -199,14 +177,21 @@ int Camera::GetSortedSquares( squares_t *squares_found )
     cvReleaseImage(&pink2);
         
     // Find and sort the squares in the m_pImage, then draw X's
-    squares_found = m_robot->findSquares(m_pThreshold, 300);
-	MergeSortSquares( &squares_found );
-    DrawOnSquares(squares_found, CV_RGB(0, 255, 0));
+    tmpSquares = m_robot->findSquares(m_pThreshold, 300);
+	MergeSortSquares( &tmpSquares );
+	
+	*fsmCode = DetermineFSMState(tmpSquares);
 
-	// determine return code
-	fsmState = DetermineFSMState(squares_found);
+	// put squares into vector
+	while ( tmpSquares != NULL && tmpSquares->next != NULL )
+	{
+		vSquares.push_back(tmpSquares);
+		tmpSquares = tmpSquares->next;
+	}
 
-	return fsmState;
+    DrawXOnSquares(vSquares, CV_RGB(0, 255, 0));
+
+	return vSquares;
 }
 
 /** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -297,6 +282,8 @@ squares_t *Camera::MergeSquares( squares_t *a, squares_t *b )
 int Camera::DetermineFSMState( squares_t *squares )
 {
 	int i=0;
+
+#ifdef DEBUG
 	cout << "DetermineFSMState:" << endl;
 	squares_t *tmp = squares;
 	while(tmp != NULL && tmp->next != NULL){
@@ -304,6 +291,7 @@ int Camera::DetermineFSMState( squares_t *squares )
 		tmp = tmp->next;
 		i++;
 	}
+#endif
 
 	// no squares found
 	if ( squares == NULL )
@@ -327,23 +315,23 @@ int Camera::DetermineFSMState( squares_t *squares )
  * 
  * Returns slope and centerPoint output params
  */
-void Camera::DrawSquareLine( squares_t *biggest, double *slope, CvPoint *centerPoint )
+void Camera::DrawSquareLine( vector<squares_t *> biggest, double *slope, CvPoint *centerPoint )
 {
         //draw horizontal line connecting squares
         CvPoint pt1, pt2;
         
-        pt1.x = biggest->center.x;
-        pt1.y = biggest->center.y;
-        pt2.x = biggest->next->center.x;
-        pt2.y = biggest->next->center.y;
+        pt1.x = biggest[0]->center.x;
+        pt1.y = biggest[0]->center.y;
+        pt2.x = biggest[1]->next->center.x;
+        pt2.y = biggest[1]	->next->center.y;
 
         cvLine(m_pImage, pt1, pt2, CV_RGB(0, 0, 255), 3);
 
         *slope = -((double)pt2.y - (double)pt1.y) / ((double)pt2.x - (double)pt1.x);
 
         //draw vertal line  between squares
-        int xCenter = (biggest->center.x + biggest->next->center.x)/2;
-        int yCenter = (biggest->center.y + biggest->next->center.y)/2;
+        int xCenter = (biggest[0]->center.x + biggest[1]->center.x)/2;
+        int yCenter = (biggest[0]->center.y + biggest[1]->center.y)/2;
 
         pt1.x = xCenter;
         pt1.y = yCenter + 10;
@@ -355,44 +343,41 @@ void Camera::DrawSquareLine( squares_t *biggest, double *slope, CvPoint *centerP
         *centerPoint = cvPoint(xCenter, yCenter);
 }
 
-void Camera::DrawOnSquares( squares_t *squares, CvScalar lineColor )
+void Camera::DrawXOnSquares( vector<squares_t *> squares, CvScalar lineColor )
 {
         CvPoint pt1, pt2;
         int sq_amt;
-        squares_t *sq_temp = squares;
 
         // draw until end of list reached
-        while( sq_temp != NULL ) {
+        for( int i=0; i<squares.size(); i++ ) {
                 // Draw an X marker on the m_pImage
-                sq_amt = (int) (sqrt(sq_temp->area) / 2);       
+                sq_amt = (int) (sqrt(squares[i]->area) / 2);       
 
                 // Upper Left to Lower Right
-                pt1.x = sq_temp->center.x - sq_amt;
-                pt1.y = sq_temp->center.y - sq_amt;
-                pt2.x = sq_temp->center.x + sq_amt;
-                pt2.y = sq_temp->center.y + sq_amt;
+                pt1.x = squares[i]->center.x - sq_amt;
+                pt1.y = squares[i]->center.y - sq_amt;
+                pt2.x = squares[i]->center.x + sq_amt;
+                pt2.y = squares[i]->center.y + sq_amt;
                 cvLine(m_pImage, pt1, pt2, lineColor, 3, CV_AA, 0);
 
                 // Lower Left to Upper Right
-                pt1.x = sq_temp->center.x - sq_amt;
-                pt1.y = sq_temp->center.y + sq_amt;
-                pt2.x = sq_temp->center.x + sq_amt;
-                pt2.y = sq_temp->center.y - sq_amt;
+                pt1.x = squares[i]->center.x - sq_amt;
+                pt1.y = squares[i]->center.y + sq_amt;
+                pt2.x = squares[i]->center.x + sq_amt;
+                pt2.y = squares[i]->center.y - sq_amt;
                 cvLine(m_pImage, pt1, pt2, lineColor, 3, CV_AA, 0);
-
-                sq_temp = sq_temp->next;
         }
 }
 
-bool Camera::DetermineAdjustment( squares_t *squares )
+void Camera::DetermineAdjustment( )
 {
         bool adjust;
-
+		
         // if 1 square found 
-        if ( m_pBiggest != NULL && m_pBiggest->next == NULL )
+		if ( m_vBiggest.size() == 1 )
         {
                 // if square on left side of screen, turn right
-                if( m_pBiggest->center.x < 320 )
+                if( m_vBiggest[0]->center.x < 320 )
                         m_iDirection = RI_TURN_RIGHT;
                 else
                         m_iDirection = RI_TURN_LEFT;
@@ -402,10 +387,10 @@ bool Camera::DetermineAdjustment( squares_t *squares )
         }
 
         // if 2 squares found, draw line connecting them
-        else if( m_pBiggest != NULL && m_pBiggest->next != NULL )
+        else if( m_vBiggest.size() == 2 )
         {
-                DrawSquareLine( m_pBiggest, &m_dSlope, &m_CvPCenterPoint );
-                DrawOnSquares( m_pBiggest, CV_RGB(255, 0, 0) );
+                DrawSquareLine( m_vBiggest, &m_dSlope, &m_CvPCenterPoint );
+                DrawXOnSquares( m_vBiggest, CV_RGB(255, 0, 0) );
         }
 
         
@@ -442,5 +427,5 @@ bool Camera::DetermineAdjustment( squares_t *squares )
                 adjust = false;
         }
 
-        return adjust;
+        m_bAdjust = adjust;
 }
