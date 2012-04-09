@@ -10,6 +10,9 @@
 
 #include "robot_if++.h"
 #include "robot_color.h"
+#include <vector>
+
+using namespace std;
 
 class Camera
 {
@@ -20,14 +23,12 @@ protected:
     IplImage *m_pHsv;
     IplImage *m_pThreshold;
 
-    CvPoint m_CvPpath_center;
-
     int m_iDirection;
     bool m_bAdjust;
     double m_dSlope;
     CvPoint m_CvPCenterPoint;
-    squares_t *m_pBiggest;
-	squares_t *m_pSquares;
+    vector<squares_t *> m_vBiggest;
+	vector<squares_t *> m_vSquares;
 
 public:
 	Camera();
@@ -35,14 +36,14 @@ public:
 
 	void InitCamera( RobotInterface *robot );
     void CamCenter();
-    int GetSortedSquares( squares_t *squares_found );
+    vector<squares_t *> GetSortedSquares( int *fsmCode );
 	void MergeSortSquares( squares_t **unsorted_squares );
 	void SplitSquares(squares_t *source, squares_t **frontRef, squares_t **backRef);
 	squares_t *MergeSquares( squares_t *a, squares_t *b );
 	int DetermineFSMState( squares_t *squares );
-    void DrawSquareLine( squares_t *squares, double *slope, CvPoint *centerPoint );
-    void DrawOnSquares( squares_t *squares, CvScalar lineColor );
-    bool DetermineAdjustment( squares_t *squares );
+    void DrawSquareLine( vector<squares_t *> biggest, double *slope, CvPoint *centerPoint );
+    void DrawXOnSquares( vector<squares_t *> squares, CvScalar lineColor );
+    void DetermineAdjustment( );
 };
 
 #endif

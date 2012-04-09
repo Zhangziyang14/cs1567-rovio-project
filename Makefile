@@ -7,6 +7,9 @@ DEPS=${PROGRAM}.o Fir.o FirTheta.o PID.o Kalman.o Robot.o Camera.o
 
 all: ${PROGRAM}
 
+debug: CFLAGS +=-DDEBUG -ggdb -Wall -g
+debug: ${PROGRAM}
+
 ${PROGRAM}: ${DEPS}
 	g++ ${CFLAGS} -o ${PROGRAM} ${DEPS} ${CPP_LIB_FLAGS} ${LIB_LINK}
 

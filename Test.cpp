@@ -7,7 +7,7 @@
  
 #include "robot_if++.h"
 #include "Robot.h"
-#include "stdio.h"
+#include <iostream>
 #include "string"
 #include "ostream"
 
@@ -29,7 +29,10 @@ int main(int argv, char **argc) {
 	robot->test();
 	*/
 
-	cam->CamCenter();
+	while(1)
+	{
+		cam->CamCenter();
+	}
  
 	//clean up
 	//delete(robot);
