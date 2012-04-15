@@ -18,6 +18,7 @@ class Camera
 {
 protected:
 	RobotInterface *m_robot;
+	const char *m_pRobotName;
 
 	IplImage *m_pImage;
     IplImage *m_pHsv;
@@ -34,7 +35,7 @@ public:
 	Camera();
 	~Camera();
 
-	void InitCamera( RobotInterface *robot );
+	void InitCamera( RobotInterface *robot, const char *robotName );
     void CamCenter();
     vector<squares_t *> GetSortedSquares( int *fsmCode );
 	void MergeSortSquares( squares_t **unsorted_squares );
@@ -44,7 +45,8 @@ public:
 	int DetermineFSMState( vector<squares_t *> );
     void DrawSquareLine( vector<squares_t *> biggest, double *slope, CvPoint *centerPoint );
     void DrawXOnSquares( vector<squares_t *> squares, CvScalar lineColor );
-    void DetermineAdjustment( );
+    void DetermineAdjustment( vector<squares_t *> squares );
+	IplImage* convertImageRGBtoHSV(const IplImage *imageRGB);
 };
 
 #endif

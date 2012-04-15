@@ -59,14 +59,14 @@ using namespace std;
 // Initializes values for Robot control
 Robot::Robot(string name)
 {
-		float wheel[] = {0.25,0.25,0.25,0.25};
+	float wheel[] = {0.25,0.25,0.25,0.25};
 
-		float NSArray[] = {0.226534104,0.05857213,0.063044531,
-			 0.066090109,0.06719469,0.066090109,
-			 0.063034531,0.05857213,0.226534104};
+	float NSArray[] = {0.226534104,0.05857213,0.063044531,
+			0.066090109,0.06719469,0.066090109,
+			0.063034531,0.05857213,0.226534104};
 
-		float thetaFilterArray[] = {0.111,0.111,0.111,0.111,0.111,0.111,0.111,0.111,0.111};
-
+	float thetaFilterArray[] = {0.111,0.111,0.111,0.111,0.111,0.111,0.111,0.111,0.111};
+	m_pRobotName = name.c_str();
     robot = new RobotInterface(name,1);
     kf = new Kalman();
 
@@ -531,7 +531,7 @@ void Robot::Init(){
      Initialize     Camera
      ************************/
 	m_camera = new Camera();
-	m_camera->InitCamera( robot );
+	m_camera->InitCamera( robot, m_pRobotName );
     
 }
 
