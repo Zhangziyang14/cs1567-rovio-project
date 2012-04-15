@@ -211,8 +211,6 @@ vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
     // Find and sort the squares in the m_pImage, then draw X's
     tmpSquares = m_robot->findSquares(m_pThreshold, 300);
 	MergeSortSquares( &tmpSquares );
-	
-	*fsmCode = DetermineFSMState(tmpSquares);
 
 	// put squares into vector
 	while ( tmpSquares != NULL && tmpSquares->next != NULL )
@@ -220,6 +218,10 @@ vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
 		vSquares.push_back(tmpSquares);
 		tmpSquares = tmpSquares->next;
 	}
+
+	vSquares = RemoveDuplicateSquares( vSquares, 0 );
+
+	*fsmCode = DetermineFSMState(vSquares);
 
     DrawXOnSquares(vSquares, CV_RGB(0, 255, 0));
 
@@ -311,35 +313,74 @@ squares_t *Camera::MergeSquares( squares_t *a, squares_t *b )
 	return result;
 }
 
-int Camera::DetermineFSMState( squares_t *squares ) 
+vector<squares_t *> Camera::RemoveDuplicateSquares( vector<squares_t *> squares, int index )
 {
-	int i=0;
 
+	// base case
+	if ( index == squares.size() )
+	{
+		return squares;
+	}
+
+	else
+	{
+		CvPoint comparePoint = squares[index]->center;
+		
+		for ( int i=0; i<squares.size(); i++ )
+		{
+			// skip index
+			if ( i == index )
+				continue;
+			
+			int xDiff = abs( squares[i]->center.x - comparePoint.x );
+			int yDiff = abs( squares[i]->center.y - comparePoint.y );
+			
+			// check for dup and erase if found
+			if ( xDiff <= 5 && yDiff <= 5 )
+				squares.erase(squares.begin()+i);
+		}
+
+		// decreement and recurse
+		index++;
+		return RemoveDuplicateSquares(squares, index);
+	}
+}
+
+int Camera::DetermineFSMState( vector<squares_t *> squares ) 
+{
 #ifdef DEBUG
 	cout << "DetermineFSMState:" << endl;
-	squares_t *tmp = squares;
-	while(tmp != NULL && tmp->next != NULL){
-		cout << "square" << i << " area: " << tmp->area << " coords: (" << tmp->center.x << ", " << tmp->center.y << ")" << endl;
-		tmp = tmp->next;
-		i++;
+	for( int i=0; i<squares.size(); i++ )
+	{
+		cout << "square" << i << " area: " << squares[i]->area << " coords: (" << squares[i]->center.x << ", " << squares[i]->center.y << ")" << endl;
 	}
 #endif
 
 	// no squares found
-	if ( squares == NULL )
+	if ( squares.size() == 0 )
 		return FSM_NO_SQUARES;
 
 	// 1 square found
-	if (squares->next == NULL )
+	if (squares.size() == 1 )
 		return FSM_ONE_SQUARE;
 
-	// pair found
-	if ( abs(squares->center.y - squares->next->center.y) <= 15 )
-		return FSM_PAIR;
+	// check for pair
+	for( int i=0; i<squares.size(); i++ )
+	{
+		for ( int j=0; j<squares.size(); j++ )
+		{
+			// avoid self compares
+			if ( j == i )
+				continue;
 
-	// 2+ squares, but biggest not paired
-	else
-		return FSM_NO_PAIR;
+			int yDiff = abs( squares[i]->center.y - squares[j]->center.y );
+			if ( yDiff <= 15 )
+				return FSM_PAIR;
+		}
+	}
+
+	// 2+ squares, but not paired
+	return FSM_NO_PAIR;
 }
 
 /**
