@@ -40,7 +40,8 @@ public:
 	void MergeSortSquares( squares_t **unsorted_squares );
 	void SplitSquares(squares_t *source, squares_t **frontRef, squares_t **backRef);
 	squares_t *MergeSquares( squares_t *a, squares_t *b );
-	int DetermineFSMState( squares_t *squares );
+	vector<squares_t *> RemoveDuplicateSquares( vector<squares_t *> squares, int index );
+	int DetermineFSMState( vector<squares_t *> );
     void DrawSquareLine( vector<squares_t *> biggest, double *slope, CvPoint *centerPoint );
     void DrawXOnSquares( vector<squares_t *> squares, CvScalar lineColor );
     void DetermineAdjustment( );
