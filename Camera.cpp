@@ -24,7 +24,6 @@ using namespace std;
 Camera::Camera()
 {	
     m_pImage = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
-    m_pHsv = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 3);
     m_pThreshold = cvCreateImage(cvSize(640, 480), IPL_DEPTH_8U, 1);
 
     m_CvPCenterPoint = cvPoint(0, 0);
@@ -37,10 +36,11 @@ Camera::~Camera()
 	cvReleaseImage(&m_pThreshold);
 }
 
-void Camera::InitCamera( RobotInterface *robot )
+void Camera::InitCamera( RobotInterface *robot, const char *robotName )
 {
 	//set RobotInterface pointer to member variable
 	m_robot = robot;
+	m_pRobotName = robotName;
 		
     // Setup the camera
     if(m_robot->CameraCfg(RI_CAMERA_DEFAULT_BRIGHTNESS, RI_CAMERA_DEFAULT_CONTRAST, 5, RI_CAMERA_RES_640, RI_CAMERA_QUALITY_HIGH)) {
@@ -62,7 +62,6 @@ void Camera::InitCamera( RobotInterface *robot )
 
     // zero out images
     cvZero(m_pImage);
-    cvZero(m_pHsv);
     cvZero(m_pThreshold);
 
     // Move the head up to the middle position
@@ -143,7 +142,7 @@ void Camera::CamCenter()
         printf("centerPoint.x: %d\n", m_CvPCenterPoint.x);
 #endif   
 		// determine if adjust needed based on squares in m_vBiggest
-        DetermineAdjustment( );
+        DetermineAdjustment( m_vBiggest );
 		
         if( m_bAdjust )
         {
@@ -151,6 +150,13 @@ void Camera::CamCenter()
 			//m_robot->Move(m_iDirection, 3);
             //m_robot->Move(RI_STOP, 1);
         }
+
+		// release data from vectors and such
+		m_vBiggest.clear();
+		m_vSquares.clear();
+		cvZero(m_pImage);
+		cvZero(m_pHsv);
+		cvZero(m_pThreshold);
 	}
 }
 
@@ -165,18 +171,31 @@ vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
 {
 	squares_t *tmpSquares;
 	vector<squares_t *> vSquares;
+
+    // Convert the m_pImage from RGB to HSV
+	m_pHsv = convertImageRGBtoHSV( m_pImage );
         
     IplImage *pink1 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
     IplImage *pink2 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
     cvZero(pink1);
     cvZero(pink2);
 
-    // Convert the m_pImage from RGB to HSV
-    cvCvtColor(m_pImage, m_pHsv, CV_BGR2HSV);
-
     // filter and combine for threshold image
-    cvInRangeS(m_pHsv, cvScalar(150, 120, 125), cvScalar(180, 200, 255), pink1);
-    cvInRangeS(m_pHsv, cvScalar(0, 120, 125), cvScalar(15, 200, 255), pink2);
+	if ( strcmp( m_pRobotName, "bender" ) == 0 )
+	{
+		cvInRangeS(m_pHsv, cvScalar(150, 120, 125), cvScalar(180, 200, 255), pink1);
+		cvInRangeS(m_pHsv, cvScalar(0, 120, 125), cvScalar(20, 200, 255), pink2);
+	}
+	else if ( strcmp( m_pRobotName, "walle" ) == 0 )
+	{
+		cvInRangeS(m_pHsv, cvScalar(230, 100, 175), cvScalar(256, 200, 256), pink1);
+		cvInRangeS(m_pHsv, cvScalar(0, 100, 175), cvScalar(22, 200, 256), pink2);
+	}
+	else
+	{
+		cout << "Invalid robot name, exiting" << endl;
+		exit(-1);
+	}
     cvOr(pink1, pink2, m_pThreshold);
 
 #ifdef DEBUG
@@ -184,25 +203,39 @@ vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
 	IplImage *hue = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
 	IplImage *hue1 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
 	IplImage *hue2 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
+	IplImage *hue3 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
 	IplImage *sat = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
+	IplImage *sat1 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
 	IplImage *val = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
+	IplImage *val1 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
+    cvZero(pinkSum);
+    cvZero(hue);
+    cvZero(hue1);
+    cvZero(hue2);
+    cvZero(hue3);
+    cvZero(sat);
+    cvZero(sat1);
+    cvZero(val);
+    cvZero(val1);
 	
 	cvOr(pink1, pink2, pinkSum);
 	cvSplit(m_pHsv, hue, sat, val, NULL);
 	
-	cvInRangeS(hue, cvScalar(173), cvScalar(179), hue1);
-	cvInRangeS(hue, cvScalar(0), cvScalar(10), hue2);
-	cvOr(hue1, hue2, hue);
-
-		
+	cvInRangeS(hue, cvScalar(230), cvScalar(256), hue1);
+	cvInRangeS(hue, cvScalar(0), cvScalar(22), hue2);
+	cvOr(hue1, hue2, hue3);		
 	
     cvNamedWindow("hue", CV_WINDOW_AUTOSIZE);
+    //cvNamedWindow("sat1", CV_WINDOW_AUTOSIZE);
     cvNamedWindow("hue1", CV_WINDOW_AUTOSIZE);
     cvNamedWindow("hue2", CV_WINDOW_AUTOSIZE);
+    cvNamedWindow("hue3", CV_WINDOW_AUTOSIZE);
     cvShowImage("pinkSum", pinkSum);
     cvShowImage("hue", hue);
+    //cvShowImage("sat1", sat1);
     cvShowImage("hue1", hue1);
     cvShowImage("hue2", hue2);
+    cvShowImage("hue3", hue3);
 #endif
 
     cvReleaseImage(&pink1);
@@ -443,17 +476,17 @@ void Camera::DrawXOnSquares( vector<squares_t *> squares, CvScalar lineColor )
         }
 }
 
-void Camera::DetermineAdjustment( )
+void Camera::DetermineAdjustment( vector<squares_t *> squares )
 {
-	//cout << "DetermineAdjustment:" << endl;
-	//cout << "m_vBiggest.size(): " << m_vBiggest.size() << endl;
+	cout << "DetermineAdjustment:" << endl;
+	cout << "squares.size(): " << squares.size() << endl;
     bool adjust;
 		
     // if 1 square found 
-	if ( m_vBiggest.size() == 1 )
+	if ( squares.size() == 1 )
     {
         // if square on left side of screen, turn right
-        if( m_vBiggest[0]->center.x < 320 )
+        if( squares[0]->center.x < 320 )
             m_iDirection = RI_TURN_RIGHT;
         else
             m_iDirection = RI_TURN_LEFT;
@@ -463,10 +496,10 @@ void Camera::DetermineAdjustment( )
     }
 
     // if 2 squares found, draw line connecting them
-    else if( m_vBiggest.size() == 2 )
+    else if( squares.size() == 2 )
     {
-        DrawSquareLine( m_vBiggest, &m_dSlope, &m_CvPCenterPoint );
-        DrawXOnSquares( m_vBiggest, CV_RGB(255, 0, 0) );
+        DrawSquareLine( squares, &m_dSlope, &m_CvPCenterPoint );
+        DrawXOnSquares( squares, CV_RGB(255, 0, 0) );
     }
 
         
@@ -504,4 +537,137 @@ void Camera::DetermineAdjustment( )
     }
 
     m_bAdjust = adjust;
+}
+
+/**
+ * Original author: Shervin Emami
+ * Citation: http://shervinemami.co.cc/colorConversion.html
+ */
+IplImage* Camera::convertImageRGBtoHSV(const IplImage *imageRGB)
+{
+	float fR, fG, fB;
+	float fH, fS, fV;
+	const float FLOAT_TO_BYTE = 255.0f;
+	const float BYTE_TO_FLOAT = 1.0f / FLOAT_TO_BYTE;
+
+	// Create a blank HSV image
+	IplImage *imageHSV = cvCreateImage(cvGetSize(imageRGB), 8, 3);
+	if (!imageHSV || imageRGB->depth != 8 || imageRGB->nChannels != 3) {
+		printf("ERROR in convertImageRGBtoHSV()! Bad input image.\n");
+		exit(1);
+	}
+
+	int h = imageRGB->height;		// Pixel height.
+	int w = imageRGB->width;		// Pixel width.
+	int rowSizeRGB = imageRGB->widthStep;	// Size of row in bytes, including extra padding.
+	char *imRGB = imageRGB->imageData;	// Pointer to the start of the image pixels.
+	int rowSizeHSV = imageHSV->widthStep;	// Size of row in bytes, including extra padding.
+	char *imHSV = imageHSV->imageData;	// Pointer to the start of the image pixels.
+	for (int y=0; y<h; y++) {
+		for (int x=0; x<w; x++) {
+			// Get the RGB pixel components. NOTE that OpenCV stores RGB pixels in B,G,R order.
+			uchar *pRGB = (uchar*)(imRGB + y*rowSizeRGB + x*3);
+			int bB = *(uchar*)(pRGB+0);	// Blue component
+			int bG = *(uchar*)(pRGB+1);	// Green component
+			int bR = *(uchar*)(pRGB+2);	// Red component
+
+			// Convert from 8-bit integers to floats.
+			fR = bR * BYTE_TO_FLOAT;
+			fG = bG * BYTE_TO_FLOAT;
+			fB = bB * BYTE_TO_FLOAT;
+
+			// Convert from RGB to HSV, using float ranges 0.0 to 1.0.
+			float fDelta;
+			float fMin, fMax;
+			int iMax;
+			// Get the min and max, but use integer comparisons for slight speedup.
+			if (bB < bG) {
+				if (bB < bR) {
+					fMin = fB;
+					if (bR > bG) {
+						iMax = bR;
+						fMax = fR;
+					}
+					else {
+						iMax = bG;
+						fMax = fG;
+					}
+				}
+				else {
+					fMin = fR;
+					fMax = fG;
+					iMax = bG;
+				}
+			}
+			else {
+				if (bG < bR) {
+					fMin = fG;
+					if (bB > bR) {
+						fMax = fB;
+						iMax = bB;
+					}
+					else {
+						fMax = fR;
+						iMax = bR;
+					}
+				}
+				else {
+					fMin = fR;
+					fMax = fB;
+					iMax = bB;
+				}
+			}
+			fDelta = fMax - fMin;
+			fV = fMax;				// Value (Brightness).
+			if (iMax != 0) {			// Make sure its not pure black.
+				fS = fDelta / fMax;		// Saturation.
+				float ANGLE_TO_UNIT = 1.0f / (6.0f * fDelta);	// Make the Hues between 0.0 to 1.0 instead of 6.0
+				if (iMax == bR) {		// between yellow and magenta.
+					fH = (fG - fB) * ANGLE_TO_UNIT;
+				}
+				else if (iMax == bG) {		// between cyan and yellow.
+					fH = (2.0f/6.0f) + ( fB - fR ) * ANGLE_TO_UNIT;
+				}
+				else {				// between magenta and cyan.
+					fH = (4.0f/6.0f) + ( fR - fG ) * ANGLE_TO_UNIT;
+				}
+				// Wrap outlier Hues around the circle.
+				if (fH < 0.0f)
+					fH += 1.0f;
+				if (fH >= 1.0f)
+					fH -= 1.0f;
+			}
+			else {
+				// color is pure Black.
+				fS = 0;
+				fH = 0;	// undefined hue
+			}
+
+			// Convert from floats to 8-bit integers.
+			int bH = (int)(0.5f + fH * 255.0f);
+			int bS = (int)(0.5f + fS * 255.0f);
+			int bV = (int)(0.5f + fV * 255.0f);
+
+			// Clip the values to make sure it fits within the 8bits.
+			if (bH > 255)
+				bH = 255;
+			if (bH < 0)
+				bH = 0;
+			if (bS > 255)
+				bS = 255;
+			if (bS < 0)
+				bS = 0;
+			if (bV > 255)
+				bV = 255;
+			if (bV < 0)
+				bV = 0;
+
+			// Set the HSV pixel components.
+			uchar *pHSV = (uchar*)(imHSV + y*rowSizeHSV + x*3);
+			*(pHSV+0) = bH;		// H component
+			*(pHSV+1) = bS;		// S component
+			*(pHSV+2) = bV;		// V component
+		}
+	}
+	return imageHSV;
 }

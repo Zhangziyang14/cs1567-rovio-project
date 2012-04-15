@@ -17,10 +17,10 @@ using namespace std;
 int main(int argv, char **argc) {
  
 	// Make sure we have a valid command line argument.
- 
+	const char *robotName = argc[1];
 	RobotInterface *robot = new RobotInterface(argc[1], 1);
 	Camera *cam = new Camera();
-	cam->InitCamera(robot);
+	cam->InitCamera(robot, robotName);
 
 	/*
 	Robot *robot = new Robot(argc[1]);
