@@ -46,7 +46,8 @@ public:
     void DrawSquareLine( vector<squares_t *> biggest, double *slope, CvPoint *centerPoint );
     void DrawXOnSquares( vector<squares_t *> squares, CvScalar lineColor );
     void DetermineAdjustment( vector<squares_t *> squares );
-	IplImage* convertImageRGBtoHSV(const IplImage *imageRGB);
+	IplImage* ConvertImageRGBtoHSV(const IplImage *imageRGB);
+	squares_t *FindSquares(IplImage* img, int threshold);
 };
 
 #endif
