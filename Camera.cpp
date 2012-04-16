@@ -173,7 +173,7 @@ vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
 	vector<squares_t *> vSquares;
 
     // Convert the m_pImage from RGB to HSV
-	m_pHsv = convertImageRGBtoHSV( m_pImage );
+	m_pHsv = ConvertImageRGBtoHSV( m_pImage );
         
     IplImage *pink1 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
     IplImage *pink2 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
@@ -219,6 +219,7 @@ vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
     cvZero(val1);
 	
 	cvOr(pink1, pink2, pinkSum);
+	cvSmooth(pinkSum, pinkSum, CV_MEDIAN, 7, 7);
 	cvSplit(m_pHsv, hue, sat, val, NULL);
 	
 	cvInRangeS(hue, cvScalar(230), cvScalar(256), hue1);
@@ -242,7 +243,7 @@ vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
     cvReleaseImage(&pink2);
         
     // Find and sort the squares in the m_pImage, then draw X's
-    tmpSquares = m_robot->findSquares(m_pThreshold, 300);
+    tmpSquares = FindSquares(m_pThreshold, 200 );
 	MergeSortSquares( &tmpSquares );
 
 	// put squares into vector
@@ -543,7 +544,7 @@ void Camera::DetermineAdjustment( vector<squares_t *> squares )
  * Original author: Shervin Emami
  * Citation: http://shervinemami.co.cc/colorConversion.html
  */
-IplImage* Camera::convertImageRGBtoHSV(const IplImage *imageRGB)
+IplImage* Camera::ConvertImageRGBtoHSV(const IplImage *imageRGB)
 {
 	float fR, fG, fB;
 	float fH, fS, fV;
@@ -670,4 +671,121 @@ IplImage* Camera::convertImageRGBtoHSV(const IplImage *imageRGB)
 		}
 	}
 	return imageHSV;
+}
+
+squares_t *Camera::FindSquares(IplImage* img, int threshold)
+{
+	CvSeq* contours;
+	CvMemStorage *storage;
+	int i, j, area;
+	CvPoint ul, lr, pt, centroid;
+	CvSize sz = cvSize( img->width, img->height);
+	IplImage * canny = cvCreateImage(sz, 8, 1);
+	squares_t *sq_head, *sq, *sq_last;
+    	CvSeqReader reader;
+    
+	// Create storage
+	storage = cvCreateMemStorage(0);
+
+	CvSeq* result;
+	double s, t;
+
+	// Create an empty sequence that will contain the square's vertices
+	CvSeq* squares = cvCreateSeq(0, sizeof(CvSeq), sizeof(CvPoint), storage);
+    
+	// Select the maximum ROI in the image with the width and height divisible by 2
+	cvSetImageROI(img, cvRect(0, 0, sz.width, sz.height));
+
+	// Apply the canny edge detector and set the lower to 0 (which forces edges merging) 
+	cvCanny(img, canny, 0, 50, 3);
+		
+	// Dilate canny output to remove potential holes between edge segments 
+	cvDilate(canny, canny, 0, 2);
+
+#ifdef DEBUG_SQUARE_CANNY
+	cvShowImage("Debug - CANNY", canny);
+#endif
+		
+	// Find the contours and store them all as a list
+	cvFindContours(canny, storage, &contours, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0,0));
+            
+	// Test each contour to find squares
+	while(contours) {
+		// Approximate a contour with accuracy proportional to the contour perimeter
+		result = cvApproxPoly(contours, sizeof(CvContour), storage, CV_POLY_APPROX_DP, cvContourPerimeter(contours)*0.10, 0 );
+                // Square contours should have
+		//	* 4 vertices after approximation
+		// 	* Relatively large area (to filter out noisy contours)
+		// 	* Ne convex.
+		// Note: absolute value of an area is used because
+		// area may be positive or negative - in accordance with the
+		// contour orientation
+                if(result->total == 4 && fabs(cvContourArea(result,CV_WHOLE_SEQ,0)) > threshold && cvCheckContourConvexity(result)) {
+			s=0;
+                    	for(i=0; i<5; i++) {
+                        	// Find the minimum angle between joint edges (maximum of cosine)
+				if(i >= 2) {
+					t = fabs(ri_angle((CvPoint*)cvGetSeqElem(result, i),(CvPoint*)cvGetSeqElem(result, i-2),(CvPoint*)cvGetSeqElem( result, i-1 )));
+					s = s > t ? s : t;
+        	                }
+			}
+                    
+			// If cosines of all angles are small (all angles are ~90 degree) then write the vertices to the sequence 
+			if( s < 0.2 ) {
+				for( i = 0; i < 4; i++ ) {
+					cvSeqPush(squares, (CvPoint*)cvGetSeqElem(result, i));
+				}
+			}
+                }
+                
+                // Get the next contour
+		contours = contours->h_next;
+	}
+
+    	// initialize reader of the sequence
+	cvStartReadSeq(squares, &reader, 0);
+	sq_head = NULL; sq_last = NULL; sq = NULL;
+	// Now, we have a list of contours that are squares, find the centroids and area
+	for(i=0; i<squares->total; i+=4) {
+		// Find the upper left and lower right coordinates
+		ul.x = 1000; ul.y = 1000; lr.x = 0; lr.y = 0;
+		for(j=0; j<4; j++) {
+			CV_READ_SEQ_ELEM(pt, reader);
+			// Upper Left
+			if(pt.x < ul.x)
+				ul.x = pt.x;
+			if(pt.y < ul.y)
+				ul.y = pt.y;
+			// Lower right
+			if(pt.x > lr.x)
+				lr.x = pt.x;
+			if(pt.y > lr.y)
+				lr.y = pt.y;
+		}
+
+		// Find the centroid
+		centroid.x = ((lr.x - ul.x) / 2) + ul.x;
+		centroid.y = ((lr.y - ul.y) / 2) + ul.y;
+
+		// Find the area
+		area = (lr.x - ul.x) * (lr.y - ul.y);
+
+		// Add it to the storage
+		sq = new squares_t;
+		// Fill in the data
+		sq->area = area;
+		sq->center.x = centroid.x;
+		sq->center.y = centroid.y;
+		sq->next = NULL;
+		if(sq_last == NULL) 
+			sq_head = sq;	
+		else 
+			sq_last->next = sq;
+		sq_last = sq;
+	}	
+    
+	// Release the temporary images and data
+	cvReleaseImage(&canny);
+	cvReleaseMemStorage(&storage);
+	return sq_head;
 }
