@@ -11,7 +11,7 @@
 #include "Camera.h"
 
 #define SLOPE_TOLERANCE	 0.1
-#define OFFSET_TOLERANCE 30
+#define OFFSET_TOLERANCE 20
 
 #define FSM_NO_SQUARES	0x00
 #define FSM_ONE_SQUARE  0x01
@@ -38,6 +38,7 @@ Camera::~Camera()
 
 void Camera::InitCamera( RobotInterface *robot, const char *robotName )
 {
+	cout << "Initializing robot: " << robotName << endl;
 	//set RobotInterface pointer to member variable
 	m_robot = robot;
 	m_pRobotName = robotName;
@@ -50,10 +51,6 @@ void Camera::InitCamera( RobotInterface *robot, const char *robotName )
         
     // Create a window to display the output
     cvNamedWindow("Pink Squares", CV_WINDOW_AUTOSIZE);
-#ifdef DEBUG
-    cvNamedWindow("Threshold", CV_WINDOW_AUTOSIZE);
-    cvNamedWindow("pinkSum", CV_WINDOW_AUTOSIZE);
-#endif
         
     // Initialize correction data
     m_iDirection = RI_MOVE_FORWARD;
@@ -69,7 +66,7 @@ void Camera::InitCamera( RobotInterface *robot, const char *robotName )
 }
 
 /** * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-  * void CamCenter()													*
+  * void CamCenter()											*
   *																*
   * Centers robot in path using squares found in camera input	*
   * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -79,6 +76,9 @@ void Camera::CamCenter()
 	m_bAdjust = true;
 
 	while( m_bAdjust ){
+#ifdef DEBUG
+		cout << endl << endl << "NEW LOOP" << endl;
+#endif
 
         if(m_robot->update() != RI_RESP_SUCCESS) {
             std::cout << "Failed to update sensor information!" << std::endl;
@@ -90,6 +90,9 @@ void Camera::CamCenter()
             std::cout << "Unable to capture an image!" << std::endl;
             continue;
         }
+
+        // Update the UI
+        cvWaitKey(10);
         
 		// handle biggest squares based on fsmCode
         m_vSquares = GetSortedSquares( &fsmCode );
@@ -113,6 +116,7 @@ void Camera::CamCenter()
 #endif
 				m_vBiggest.push_back(m_vSquares[0]);
 				m_vBiggest.push_back(m_vSquares[1]);
+				DrawSquareLine( m_vBiggest, &m_dSlope, &m_CvPCenterPoint );
 				break;
 			case FSM_NO_PAIR:
 #ifdef DEBUG
@@ -120,12 +124,16 @@ void Camera::CamCenter()
 #endif
 				m_vBiggest.push_back(m_vSquares[0]);
 				m_vBiggest.push_back(m_vSquares[1]);
+				DrawSquareLine( m_vBiggest, &m_dSlope, &m_CvPCenterPoint );
 				break;
 			default:
 				cout << "FSM error. Exiting" << endl;
 				exit(-1);
 		}
 
+		// determine if adjust needed based on squares in m_vBiggest
+        DetermineAdjustment( m_vBiggest );
+		
         // Display the image
         cvLine(m_pImage, cvPoint(320, 480), cvPoint(320, 0), CV_RGB(255, 0, 255), 3);
         cvShowImage("Pink Squares", m_pImage);
@@ -133,22 +141,17 @@ void Camera::CamCenter()
 #ifdef DEBUG
         cvShowImage("Threshold", m_pThreshold);
 #endif
-                
-        // Update the UI
-        cvWaitKey(3);
 
 #ifdef DEBUG
         printf("m_dSlope: %.3f\n", m_dSlope);
         printf("centerPoint.x: %d\n", m_CvPCenterPoint.x);
 #endif   
-		// determine if adjust needed based on squares in m_vBiggest
-        DetermineAdjustment( m_vBiggest );
 		
         if( m_bAdjust )
         {
             cout << "MOVING" << endl;
-			//m_robot->Move(m_iDirection, 3);
-            //m_robot->Move(RI_STOP, 1);
+			m_robot->Move(m_iDirection, 3);
+            m_robot->Move(RI_STOP, 1);
         }
 
 		// release data from vectors and such
@@ -183,8 +186,8 @@ vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
     // filter and combine for threshold image
 	if ( strcmp( m_pRobotName, "bender" ) == 0 )
 	{
-		cvInRangeS(m_pHsv, cvScalar(150, 120, 125), cvScalar(180, 200, 255), pink1);
-		cvInRangeS(m_pHsv, cvScalar(0, 120, 125), cvScalar(20, 200, 255), pink2);
+		cvInRangeS(m_pHsv, cvScalar(230, 100, 125), cvScalar(256, 200, 255), pink1);
+		cvInRangeS(m_pHsv, cvScalar(0, 100, 125), cvScalar(22, 200, 255), pink2);
 	}
 	else if ( strcmp( m_pRobotName, "walle" ) == 0 )
 	{
@@ -197,9 +200,12 @@ vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
 		exit(-1);
 	}
     cvOr(pink1, pink2, m_pThreshold);
+	cvSmooth(m_pThreshold, m_pThreshold, CV_MEDIAN, 7, 7);
+
 
 #ifdef DEBUG
-	IplImage *pinkSum = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
+	/*IplImage *pinkSum = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
+	IplImage *pinkSumSmooth = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
 	IplImage *hue = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
 	IplImage *hue1 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
 	IplImage *hue2 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
@@ -209,6 +215,7 @@ vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
 	IplImage *val = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
 	IplImage *val1 = cvCreateImage(cvGetSize(m_pHsv), m_pHsv->depth, 1);
     cvZero(pinkSum);
+    cvZero(pinkSumSmooth);
     cvZero(hue);
     cvZero(hue1);
     cvZero(hue2);
@@ -219,24 +226,27 @@ vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
     cvZero(val1);
 	
 	cvOr(pink1, pink2, pinkSum);
-	cvSmooth(pinkSum, pinkSum, CV_MEDIAN, 7, 7);
+	cvSmooth(pinkSum, pinkSumSmooth, CV_MEDIAN, 7, 7);
 	cvSplit(m_pHsv, hue, sat, val, NULL);
 	
-	cvInRangeS(hue, cvScalar(230), cvScalar(256), hue1);
-	cvInRangeS(hue, cvScalar(0), cvScalar(22), hue2);
-	cvOr(hue1, hue2, hue3);		
+	cvInRangeS(val, cvScalar(125), cvScalar(256), val1);
+	//cvInRangeS(hue, cvScalar(0), cvScalar(20), hue2);
+	//cvOr(hue1, hue2, hue3);		
 	
-    cvNamedWindow("hue", CV_WINDOW_AUTOSIZE);
-    //cvNamedWindow("sat1", CV_WINDOW_AUTOSIZE);
-    cvNamedWindow("hue1", CV_WINDOW_AUTOSIZE);
-    cvNamedWindow("hue2", CV_WINDOW_AUTOSIZE);
-    cvNamedWindow("hue3", CV_WINDOW_AUTOSIZE);
+    cvNamedWindow("pinkSum", CV_WINDOW_AUTOSIZE);
+    cvNamedWindow("pinkSumSmooth", CV_WINDOW_AUTOSIZE);
+    cvNamedWindow("val", CV_WINDOW_AUTOSIZE);
+    cvNamedWindow("val1", CV_WINDOW_AUTOSIZE);
+    //cvNamedWindow("hue1", CV_WINDOW_AUTOSIZE);
+    //cvNamedWindow("hue2", CV_WINDOW_AUTOSIZE);
+    //cvNamedWindow("hue3", CV_WINDOW_AUTOSIZE);
     cvShowImage("pinkSum", pinkSum);
-    cvShowImage("hue", hue);
-    //cvShowImage("sat1", sat1);
-    cvShowImage("hue1", hue1);
-    cvShowImage("hue2", hue2);
-    cvShowImage("hue3", hue3);
+    cvShowImage("pinkSumSmooth", pinkSumSmooth);
+    cvShowImage("val", val);
+    cvShowImage("val1", val1);
+    //cvShowImage("hue1", hue1);
+    //cvShowImage("hue2", hue2);
+    //cvShowImage("hue3", hue3);*/
 #endif
 
     cvReleaseImage(&pink1);
@@ -255,7 +265,7 @@ vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
 
 	vSquares = RemoveDuplicateSquares( vSquares, 0 );
 
-	*fsmCode = DetermineFSMState(vSquares);
+	*fsmCode = DetermineFSMState( vSquares );
 
     DrawXOnSquares(vSquares, CV_RGB(0, 255, 0));
 
@@ -349,9 +359,8 @@ squares_t *Camera::MergeSquares( squares_t *a, squares_t *b )
 
 vector<squares_t *> Camera::RemoveDuplicateSquares( vector<squares_t *> squares, int index )
 {
-
 	// base case
-	if ( index == squares.size() )
+	if ( squares.size() - index == 0 )
 	{
 		return squares;
 	}
@@ -371,7 +380,13 @@ vector<squares_t *> Camera::RemoveDuplicateSquares( vector<squares_t *> squares,
 			
 			// check for dup and erase if found
 			if ( xDiff <= 5 && yDiff <= 5 )
+			{
 				squares.erase(squares.begin()+i);
+
+				// reset index to check for other possible dups
+				index = 0;
+				return RemoveDuplicateSquares(squares, index);
+			}
 		}
 
 		// decreement and recurse
@@ -424,19 +439,18 @@ int Camera::DetermineFSMState( vector<squares_t *> squares )
  */
 void Camera::DrawSquareLine( vector<squares_t *> biggest, double *slope, CvPoint *centerPoint )
 {
-	cout << "DRAWING LINE" << endl;
     //draw horizontal line connecting squares
     CvPoint pt1, pt2;
         
     pt1.x = biggest[0]->center.x;
     pt1.y = biggest[0]->center.y;
-    pt2.x = biggest[1]->next->center.x;
-    pt2.y = biggest[1]	->next->center.y;
+    pt2.x = biggest[1]->center.x;
+    pt2.y = biggest[1]->center.y;
 
     cvLine(m_pImage, pt1, pt2, CV_RGB(0, 0, 255), 3);
 
     *slope = -((double)pt2.y - (double)pt1.y) / ((double)pt2.x - (double)pt1.x);
-
+	
     //draw vertal line  between squares
     int xCenter = (biggest[0]->center.x + biggest[1]->center.x)/2;
     int yCenter = (biggest[0]->center.y + biggest[1]->center.y)/2;
@@ -447,7 +461,6 @@ void Camera::DrawSquareLine( vector<squares_t *> biggest, double *slope, CvPoint
     pt2.y = yCenter - 10;
                 
     cvLine(m_pImage, pt1, pt2, CV_RGB(0, 0, 127), 3);
-
     *centerPoint = cvPoint(xCenter, yCenter);
 }
 
@@ -499,7 +512,6 @@ void Camera::DetermineAdjustment( vector<squares_t *> squares )
     // if 2 squares found, draw line connecting them
     else if( squares.size() == 2 )
     {
-        DrawSquareLine( squares, &m_dSlope, &m_CvPCenterPoint );
         DrawXOnSquares( squares, CV_RGB(255, 0, 0) );
     }
 
