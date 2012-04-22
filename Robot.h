@@ -14,10 +14,19 @@
 #include "PID.h"
 #include "Kalman.h"
 #include "Camera.h"
+#define NORTH 90     // Degree
+#define EAST 180    // Degree
+#define SOUTH 270   // Degree
+#define WEST 0    // Degree 
+
 
 class Robot
 {
 protected:
+    int currFacing; //current facing
+    int curr_x;      //current X
+    int curr_y;      //current Y
+
     Fir *xFilter;
     Fir *yFilter;
     Fir *rightFilter;
@@ -55,23 +64,25 @@ protected:
 	Camera *m_camera;
     
 public:
-	Robot(string);
+	Robot(string, int);
 	~Robot();
 	
-    void MoveTo(float targetX, float targetY);
+    void MoveTo(int nextFacing);
     void TurnTo(float target);
     void Init();
     void ReadData();
 	void test();
 	void move(int);
+    map_obj_t* getMap(int* score_1,int* score_2);
+    int reserveMap(int x, int y);
+    int updateMap(int x, int y);
 	
 private:
-    void NS_Rotate(int room);
-    void NS_Scale();
-    void NS_Align(int room);
+
     void updateNS(int flag);
     void updateWE(int flag);
     void updateKalman();
+	void setParameter(string);
     float CorrectTheta(float old, int roomID);
 	int WheelAverageX( float rightEncoder, float leftEncoder );
 	int WheelAverageY( float rightEncoder, float leftEncoder, float rear );

@@ -20,6 +20,7 @@
 using namespace std;
 
 /******define CONSTANTS******/
+#define AMOUNT_MOVE 65	// The amount we need to move in cm
 #define ANGLE_WHEEL_RIGHT 0.523598776
 #define ANGLE_WHEEL_LEFT 2.61799388
 #define ANGLE_WHEEL_REAR 1.57079633
@@ -48,6 +49,8 @@ using namespace std;
 #define RADIAN_PER_TICK 0.0369
 
 
+
+
 /******define utility macros******/
 #define TODEGREE(x) ((float)((x)*57.29578)) //turn radian into degree
 #define ABS(x) ((x)>0?(x):-(x))
@@ -57,7 +60,7 @@ using namespace std;
 
 // Constructor
 // Initializes values for Robot control
-Robot::Robot(string name)
+Robot::Robot(string name,int robot_number)
 {
 		float wheel[] = {0.25,0.25,0.25,0.25};
 
@@ -67,9 +70,18 @@ Robot::Robot(string name)
 
 		float thetaFilterArray[] = {0.111,0.111,0.111,0.111,0.111,0.111,0.111,0.111,0.111};
 
-    robot = new RobotInterface(name,1);
+    robot = new RobotInterface(name,robot_number);
     kf = new Kalman();
-
+    if(robot_number == 2) {
+		curr_x = 6;
+		curr_y = 2;
+		currFacing = WEST;
+	}
+	if(robot_number == 1) {
+		curr_x = 0;
+		curr_y = 2;
+		currFacing = EAST;
+	}
 	/*
 	xFilter = new Fir();
     yFilter = new Fir();
@@ -78,6 +90,7 @@ Robot::Robot(string name)
     rearFilter = new Fir();
 	//*/
 	
+	setParameter(name);
 	
     xFilter = new Fir(NSArray, ARRAY_SIZE);
     yFilter = new Fir(NSArray, ARRAY_SIZE);
@@ -86,7 +99,14 @@ Robot::Robot(string name)
     rearFilter = new Fir(wheel, 4);
 	thetaFilter = new FirTheta(thetaFilterArray, 9);
 	//*/
-	robot->Move(RI_HEAD_MIDDLE,1);//move head up
+		// Put the robot's head up.
+	if(robot -> getHeadPosition() != RI_ROBOT_HEAD_MID) {
+		robot-> Move(RI_HEAD_MIDDLE, 1);
+		
+		// Make sure the head is up before the robot takes the first image.
+		usleep(250000);
+	}
+	//robot->Move(RI_HEAD_MIDDLE,1);//move head up
 }
 
 // Destructor
@@ -103,62 +123,15 @@ Robot::~Robot()
 
 }
 
-void Robot::NS_Rotate(int room){ 
-    switch(room)
-	{
-		case 2: 
-		{
-
-			break;
-		}
-		case 3: 
-		{
-
-			break;
-		}
-		case 4: 
-		{
-            break;
-		}
-		case 5: 
-		{
-
-			break;
-		}
-	}
-
+map_obj_t* Robot::getMap(int* score_1,int* score_2){
+	return robot->getMap(score_1,score_2);
+}
+int Robot::updateMap(int x, int y){ 
+    return robot->updateMap(x,y);
 
 }
-void Robot::NS_Scale(){ 
-    
-    currNSX = currNSX * CM_PER_NS;
-    currNSY = currNSY * CM_PER_NS;
-
-}
-void Robot::NS_Align(int room){ 
-    switch(room)
-	{
-		case 2: 
-		{
-            
-			break;
-		}
-		case 3: 
-		{
-            
-			break;
-		}
-		case 4: 
-		{
-            break;
-		}
-		case 5: 
-		{
-            
-			break;
-		}
-	}
-
+int Robot::reserveMap(int x, int y){ 
+	return robot->reserveMap(x,y);
 }
 void Robot::updateNS(int flag){
     if(ACTION_MOVE == flag){
@@ -259,10 +232,7 @@ void Robot::updateNS(int flag){
 		
         
     }
-    
-    
-    
-    
+       
 }
 
 void Robot::updateWE(int flag){ 
@@ -324,7 +294,6 @@ void Robot::updateWE(int flag){
 		float deltaTheta = filterB * RADIAN_PER_TICK;	//calcualte estimate 
 		currWTheta += deltaTheta;
 	}
-
 
 }
 
@@ -535,7 +504,7 @@ void Robot::Init(){
     
 }
 
-void Robot::move(int target){
+void Robot::move(int nextFacing){
 	updateNS(ACTION_TURN);
 	int step;
 
@@ -554,11 +523,9 @@ void Robot::move(int target){
 			m_camera->CamCenter();
 			m_camera->CamCenter();
 		}
-		if(finalY<-target){
+		if(finalY<-nextFacing){
 			break; 
 		}
-		printf("!@#!@#!@#\n steps:%d \n!@#!@#!@#!@#\n",step);
-		
 
 		prevNSD = currNSD;
 	}
@@ -567,7 +534,7 @@ void Robot::move(int target){
 
 }
 
-void Robot::MoveTo(float targetX, float targetY){
+void Robot::MoveTo(int nextFacing){
     PID *pid = new PID();   
 	float XYRange = sqrt(MOVETO_MARGIN); 
 	float Xoffset=0;
@@ -581,7 +548,37 @@ void Robot::MoveTo(float targetX, float targetY){
     float currTheta = finalTheta;
     float vel[3]; // velocity array
     float pid_val;
+    float targetX, targetY;
     
+
+    if(nextFacing == NORTH) {
+		targetX = currX - AMOUNT_MOVE;
+		targetY = currY;
+		curr_y--;
+	}
+	else if (nextFacing == SOUTH) {
+		targetX = currX + AMOUNT_MOVE;
+		targetY = currY;
+		curr_y++;
+	}
+	else if (nextFacing == WEST) {
+		targetX = currX;
+		targetY = currY + AMOUNT_MOVE;
+		curr_x--;
+	}
+	else if (nextFacing == EAST) {
+		targetX = currX;
+		targetY = currY - AMOUNT_MOVE;
+		curr_x++;
+	}
+	else {
+		std::cout << "Couldn't set the target X and Y.  Error in the value of nextFacing: " << nextFacing << std::endl;
+	}
+
+	// Turn to the correct direction.
+	if(currFacing != nextFacing) {
+		TurnTo(nextFacing);
+	}
 	//total distance we need to travel
 	float totalDistance = sqrt(pow(targetX-currX,2) + pow(targetY-currY,2));
 	float beginX = currX, beginY = currY;
@@ -594,7 +591,8 @@ void Robot::MoveTo(float targetX, float targetY){
          *********************************/
         updateNS(ACTION_MOVE);
         updateWE(ACTION_MOVE);
-        
+        updateKalman();
+
         vel[0] = move_speed * -sin(currTheta) * CM_PER_TICK;
         vel[1] = move_speed * cos(currTheta) * CM_PER_TICK;
         kf->rovioKalmanFilterSetVelocity(vel);
@@ -632,56 +630,7 @@ void Robot::MoveTo(float targetX, float targetY){
 			break;
 		}
         
-		//If we already reach targetX or targetY
-		if((ABS(Xoffset)<=XYRange || ABS(Yoffset)<=XYRange) && NewTarget==false) {			
-            NewTarget = true;            //we already check it before
-            
-			if(ABS(Xoffset)<=XYRange) {    //we get to targeX, but not target Y
-				if(Yoffset>0) {                    //current Y is too large, then we should face 270 degree
-					if(ABS(currTheta-TORADIAN(0))>thetaOffset){//if we are not facing 270 degree
-						printf("----target %5.2f, %5.2f--------Im at %5.2f,%5.2f, need to face 270\n",
-							   targetX,targetY,currX,currY);
-						TurnTo(0.0);
-						MoveTo(targetX,targetY);//move to a new destination
-						break;
-					}
-				}
-				else{
-					if(ABS(currTheta-TORADIAN(180))>thetaOffset){//if we are not facing 270 degree
-						printf("----target %5.2f, %5.2f--------Im at %5.2f,%5.2f, need to face 270\n",
-							   targetX,targetY,currX,currY);
-						TurnTo(180.0);
-						MoveTo(targetX,targetY);//move to a new destination
-						break;
-					}
-                    
-				}
-			}
-			else if((ABS(Yoffset)<=XYRange)){
-				if(Xoffset>0) {  
-					if(ABS(currTheta-TORADIAN(270))>thetaOffset){//if we are not facing 270 degree
-						printf("----target %5.2f, %5.2f--------Im at %5.2f,%5.2f, need to face 270\n",
-							   targetX,targetY,currX,currY);
-						TurnTo((float)270.0);
-						MoveTo(targetX,targetY);//move to a new destination
-						break;
-					}
-                    
-				}
-				else{
-					if(ABS(currTheta-TORADIAN(90))>thetaOffset){//if we are not facing 270 degree
-						printf("----target %5.2f, %5.2f--------Im at %5.2f,%5.2f, need to face 270\n",
-							   targetX,targetY,currX,currY);
-						TurnTo((float)90.0);
-						MoveTo(targetX,targetY);//move to a new destination
-						break;
-					}
-				}
-                
-			}
-            
-            
-		}
+		
         
         if(pid_val<=50) {	//if pid value is less then 50
 			move_speed = 8;
@@ -712,8 +661,8 @@ void Robot::MoveTo(float targetX, float targetY){
 
 }
 
-void Robot::TurnTo(float target){ 
-    
+void Robot::TurnTo(float target_t){ 
+    float target = target_t;
     float degreeCurrent;
 	float offset = TURNTO_MARGIN; 
 	float diff;//diff between current and target
@@ -722,7 +671,12 @@ void Robot::TurnTo(float target){
 	int turn_speed = 8;
 	int turn_flag = RI_TURN_LEFT;//set initial turn flag to turn left
     float pid_val; //pid value
+    currFacing = target;
 	//float vel[3]; // velocity array
+
+    if((target_t==90 ) && roomID==3){ //or target_t==180
+    	target += 9;
+    }
 	
 	do {
         // data sample collecting
@@ -793,10 +747,10 @@ float Robot::CorrectTheta(float oldTheta, int roomID){
 	
 	switch(roomID) {
 		case 2: //room 2
-			newTheta = 360+271 - TODEGREE(oldTheta);
+			newTheta = 360+271 + 9 - TODEGREE(oldTheta);
 			break;
 		case 3: //room3
-			newTheta = 360+183 - TODEGREE(oldTheta);
+			newTheta = 360+183 + 9 - TODEGREE(oldTheta);
 			break;
 		case 4: //room 4
 			newTheta = 360+275 - TODEGREE(oldTheta);
@@ -846,4 +800,14 @@ int Robot::WheelAverageY(float rightWheel, float leftWheel, float rearWheel) {
         else
                 x = rearWheel;
         return x;
+}
+
+void Robot::setParameter(string name){
+	if(name.compare("rosie")){
+	
+	}
+
+	if(name.compare("walle")){
+			
+	}
 }
