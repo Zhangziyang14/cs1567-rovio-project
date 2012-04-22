@@ -18,7 +18,7 @@ class Camera
 {
 protected:
 	RobotInterface *m_robot;
-	const char *m_pRobotName;
+	string m_pRobotName;
 
 	IplImage *m_pImage;
     IplImage *m_pHsv;
@@ -35,19 +35,19 @@ public:
 	Camera();
 	~Camera();
 
-	void InitCamera( RobotInterface *robot, const char *robotName );
-    void CamCenter();
-    vector<squares_t *> GetSortedSquares( int *fsmCode );
-	void MergeSortSquares( squares_t **unsorted_squares );
-	void SplitSquares(squares_t *source, squares_t **frontRef, squares_t **backRef);
-	squares_t *MergeSquares( squares_t *a, squares_t *b );
-	vector<squares_t *> RemoveDuplicateSquares( vector<squares_t *> squares, int index );
-	int DetermineFSMState( vector<squares_t *> );
-    void DrawSquareLine( vector<squares_t *> biggest, double *slope, CvPoint *centerPoint );
-    void DrawXOnSquares( vector<squares_t *> squares, CvScalar lineColor );
-    void DetermineAdjustment( vector<squares_t *> squares );
-	IplImage* ConvertImageRGBtoHSV(const IplImage *imageRGB);
-	squares_t *FindSquares(IplImage* img, int threshold);
+	void					InitCamera( RobotInterface *robot, string robotName );
+    void					CamCenter();
+    vector<squares_t *>		GetSortedSquares( int *fsmCode );
+	void					MergeSortSquares( squares_t **unsorted_squares );
+	void					SplitSquares(squares_t *source, squares_t **frontRef, squares_t **backRef);
+	squares_t *				MergeSquares( squares_t *a, squares_t *b );
+	vector<squares_t *>		RemoveDuplicateSquares( vector<squares_t *> squares, unsigned int index );
+	int						DetermineFSMState( vector<squares_t *> );
+    void					DrawSquareLine( vector<squares_t *> biggest, double *slope, CvPoint *centerPoint );
+    void					DrawXOnSquares( vector<squares_t *> squares, CvScalar lineColor );
+    void					DetermineAdjustment( vector<squares_t *> squares );
+	IplImage*				ConvertImageRGBtoHSV( const IplImage *imageRGB);
+	squares_t *				FindSquares( IplImage* img, int threshold);
 };
 
 #endif

@@ -17,24 +17,15 @@ using namespace std;
 int main(int argv, char **argc) {
  
 	// Make sure we have a valid command line argument.
-	const char *robotName = argc[1];
-	RobotInterface *robot = new RobotInterface(argc[1], 1);
-	Camera *cam = new Camera();
-	cam->InitCamera(robot, robotName);
+	string robotName(argc[1]);
+	RobotInterface *ri = new RobotInterface(argc[1], 1);
 
-	/*
 	Robot *robot = new Robot(argc[1]);
-	robot->init();
-	printf("done.\n");
-	robot->test();
-	*/
+	robot->Init();
 
-	while(1)
-	{
-		cam->CamCenter();
-	}
- 
-	//clean up
-	//delete(robot);
+	robot->test();
+
+	cout << "Test Complete!" << endl;
+
 	return 0;
 }
