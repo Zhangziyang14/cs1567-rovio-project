@@ -53,7 +53,7 @@ protected:
     int roomID;
 
 	Camera *m_camera;
-	const char *m_pRobotName;
+	string m_pRobotName;
     
 public:
 	Robot(string);

@@ -415,48 +415,14 @@ void Robot::ReadData(){
 
 void Robot::test(){
 
-	for(int i=0; i<2; i++){
-		updateNS(ACTION_TURN);
-		updateWE(ACTION_MOVE);
-		//updateKalman();
-		robot->Move(RI_MOVE_BACKWARD,5);
-	}
-
-		updateNS(ACTION_TURN);
-		updateWE(ACTION_MOVE);
-		updateKalman();
-		robot->Move(RI_MOVE_FORWARD,5);
-		updateNS(ACTION_TURN);
-		updateWE(ACTION_MOVE);
-		updateKalman();
-		robot->Move(RI_MOVE_FORWARD,5);
-		updateNS(ACTION_MOVE);
-		updateNS(ACTION_MOVE);
-
-		//TurnTo(90);
-		//TurnTo(351);
-
-		for(int j=0;j<5;j++){
-			m_camera->CamCenter();
-		}
-		
-		move(100);
-		updateNS(ACTION_TURN);
-		m_camera->CamCenter();
-		move(220);
-		updateNS(ACTION_TURN);
-		m_camera->CamCenter();
-		//TurnTo(90);
-		move(322);
-		updateNS(ACTION_TURN);
-
-		TurnTo(90);
-		m_camera->CamCenter();
-
-		updateNS(ACTION_TURN);
-		move(650);
-
-
+	m_camera->CamCenter();
+	move(65);
+	m_camera->CamCenter();
+	move(65*2);
+	m_camera->CamCenter();
+	TurnTo(90);
+	m_camera->CamCenter();
+	move(65*3);
 }
 
 void Robot::Init(){ 

@@ -18,5 +18,7 @@ ${PROGRAM}: ${DEPS}
 
 clean:
 	rm -rf *.o
+	rm -rf *.jpg
+	rm -rf *.txt
 	rm -rf ${PROGRAM}
 	rm -rf core.*
