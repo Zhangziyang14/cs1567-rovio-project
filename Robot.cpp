@@ -20,7 +20,8 @@
 using namespace std; 
 
 /******define CONSTANTS******/
-#define AMOUNT_MOVE 58	// The amount we need to move in cm
+#define AMOUNT_MOVE_BENDER 65
+#define AMOUNT_MOVE_ROSIE  75
 #define ANGLE_WHEEL_RIGHT 0.523598776
 #define ANGLE_WHEEL_LEFT 2.61799388
 #define ANGLE_WHEEL_REAR 1.57079633
@@ -596,7 +597,13 @@ void Robot::MoveTo(int nextFacing){
     rearFilter->reset();
 	thetaFilter->reset();
     
+	m_camera->CamCenter();
+	int itr=0;
 	do{ 
+		itr++;
+		if ( itr >= 200 )
+			break;
+
         /*********************************
           update X, Y Theta
          *********************************/
@@ -815,10 +822,12 @@ int Robot::WheelAverageY(float rightWheel, float leftWheel, float rearWheel) {
 
 void Robot::setParameter(string name){
 	if(name.compare("rosie")==0){
-	
+		AMOUNT_MOVE  = AMOUNT_MOVE_ROSIE;	// The amount we need to move in cm
+
 	}
 
-	if(name.compare("walle")==0){
-			
+	if(name.compare("bender")==0){
+		AMOUNT_MOVE  = AMOUNT_MOVE_BENDER;	// The amount we need to move in cm
+
 	}
 }
