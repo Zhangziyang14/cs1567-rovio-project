@@ -1,10 +1,10 @@
 #include "Game.h"
 
 
-#define N 0
-#define W 270
-#define S 180
-#define E 90
+#define N 90
+#define E 180
+#define S 270
+#define W 0
 
 #define MIN_SEARCH_DEPTH 4
 

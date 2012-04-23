@@ -17,10 +17,10 @@
 
 #include "Robot.h"
 
-using namespace std;
+using namespace std; 
 
 /******define CONSTANTS******/
-#define AMOUNT_MOVE 65	// The amount we need to move in cm
+#define AMOUNT_MOVE 58	// The amount we need to move in cm
 #define ANGLE_WHEEL_RIGHT 0.523598776
 #define ANGLE_WHEEL_LEFT 2.61799388
 #define ANGLE_WHEEL_REAR 1.57079633
@@ -588,6 +588,13 @@ void Robot::MoveTo(int nextFacing){
 	float beginX = currX, beginY = currY;
 	int move_flag = RI_MOVE_FORWARD;
 	int move_speed = 1;//initial speed set to 1
+
+	xFilter->reset();
+    yFilter->reset();
+    rightFilter->reset();
+    leftFilter->reset();
+    rearFilter->reset();
+	thetaFilter->reset();
     
 	do{ 
         /*********************************
@@ -622,7 +629,7 @@ void Robot::MoveTo(int nextFacing){
         //PID control
         pid_val = pid->control(disoffset);
         
-		printf(" offset: %6.2f, \n",disoffset);
+		printf(" offset: %6.2f pid_val: %6.2f , \n",disoffset,pid_val);
         
 		//if distance offset is less than margin, done
 		if(disoffset <= XYRange) {
@@ -636,11 +643,11 @@ void Robot::MoveTo(int nextFacing){
         
 		
         
-        if(pid_val<=50) {	//if pid value is less then 50
+        if(pid_val<=30) {	//if pid value is less then 50
 			move_speed = 8;
 		}
-		else if(pid_val<100) {//if pid value is less then 100 and greater than 50
-			move_speed = 5;
+		else if(pid_val<50) {//if pid value is less then 100 and greater than 50
+			move_speed = 6;
 		}
 		else {//else set speed to 8
 			move_speed = 1;

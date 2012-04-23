@@ -62,10 +62,10 @@ int main(int argv, char **argc) {
 
 	game_node  = new Game(robot->getMap(&score_1, &score_2), robot_number);
 	//robot -> MoveTo(NORTH);
-	robot -> MoveTo(NORTH);
-	robot -> MoveTo(SOUTH);
-	robot -> MoveTo(WEST);
-	robot -> MoveTo(EAST);
+	//robot -> MoveTo(NORTH);
+	//robot -> MoveTo(SOUTH);
+	//robot -> MoveTo(WEST);
+	//robot -> MoveTo(EAST);
 
 	printf("done.\n");
 	
@@ -90,7 +90,7 @@ int main(int argv, char **argc) {
 		} while (facing == -2);
 
 		
-		// Set the new X and Y.
+		// Set the new X and Y. 
 		switch(facing) {
 			case NORTH:
 				curr_y--;break;
@@ -112,7 +112,7 @@ int main(int argv, char **argc) {
 			// robot move here
 			std::cout << "Moving to " << curr_x << ", " << curr_y << std::endl;
 
-			//robot -> MoveTo(facing);
+			robot -> MoveTo(facing);
 			printf("Facing: %d\n", facing);
 			printf("Moved to %d,%d\n", curr_x,curr_y);
 		}
