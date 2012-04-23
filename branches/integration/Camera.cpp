@@ -74,11 +74,16 @@ void Camera::CamCenter()
 {
 	int fsmCode;
 	m_bAdjust = true;
+	int itr = 0;
 
 	while( m_bAdjust ){
 #ifdef DEBUG
 		cout << endl << endl << "NEW LOOP" << endl;
 #endif
+		itr++;
+
+		if ( itr > 25 )
+			break;
 
         if(m_robot->update() != RI_RESP_SUCCESS) {
             std::cout << "Failed to update sensor information!" << std::endl;
@@ -213,7 +218,7 @@ vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
 		cvInRangeS(m_pHsv, cvScalar(230, 100, 125), cvScalar(256, 200, 256), pink1);
 		cvInRangeS(m_pHsv, cvScalar(0, 100, 125), cvScalar(22, 200, 256), pink2);
 	}
-	else if ( m_pRobotName.compare( "walle" ) == 0 )
+	else if ( m_pRobotName.compare( "rosie" ) == 0 )
 	{
 		cvInRangeS(m_pHsv, cvScalar(230, 100, 125), cvScalar(256, 200, 256), pink1);
 		cvInRangeS(m_pHsv, cvScalar(0, 100, 125), cvScalar(22, 200, 256), pink2);
