@@ -482,30 +482,33 @@ void Robot::MoveTo(int nextFacing){
     float pid_val;
     float targetX, targetY;
     
-
+    
     if(nextFacing == NORTH) {
-		targetX = currX - AMOUNT_MOVE;
-		targetY = currY;
+		//targetX = currX - AMOUNT_MOVE;
+		//targetY = currY;
 		curr_y--;
 	}
 	else if (nextFacing == SOUTH) {
-		targetX = currX + AMOUNT_MOVE;
-		targetY = currY;
+		//targetX = currX + AMOUNT_MOVE;
+		//targetY = currY;
 		curr_y++;
 	}
 	else if (nextFacing == WEST) {
-		targetX = currX;
-		targetY = currY + AMOUNT_MOVE;
+		//targetX = currX;
+		//targetY = currY + AMOUNT_MOVE;
 		curr_x--;
 	}
 	else if (nextFacing == EAST) {
-		targetX = currX;
-		targetY = currY - AMOUNT_MOVE;
+		//targetX = currX;
+		//targetY = currY - AMOUNT_MOVE;
 		curr_x++;
 	}
 	else {
 		std::cout << "Couldn't set the target X and Y.  Error in the value of nextFacing: " << nextFacing << std::endl;
 	}
+	targetY = currY + AMOUNT_MOVE;
+	targetX = currX;
+
 
 	// Turn to the correct direction.
 	if(currFacing != nextFacing) {
