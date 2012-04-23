@@ -273,7 +273,7 @@ void Robot::updateWE(int flag){
 		int moveY = WheelAverageY((float)(filterR), (float)(filterL), (float)(filterB)) * CM_PER_TICK;//get x contribution after filter  
 		int moveX = WheelAverageX((float)(filterR), (float)(filterL)) * CM_PER_TICK;//get y contribution after filter
         
-		if(m_pRobotName.compare("walle")){
+		if(m_pRobotName.compare("walle")==0){
 			moveX = moveX * 2;
 			moveY = moveY * 2;
 		}
@@ -807,11 +807,11 @@ int Robot::WheelAverageY(float rightWheel, float leftWheel, float rearWheel) {
 }
 
 void Robot::setParameter(string name){
-	if(name.compare("rosie")){
+	if(name.compare("rosie")==0){
 	
 	}
 
-	if(name.compare("walle")){
+	if(name.compare("walle")==0){
 			
 	}
 }
