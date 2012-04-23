@@ -582,10 +582,10 @@ void Camera::DetermineAdjustment( vector<squares_t *> squares )
 			{
 				// left turn required
 				if ( centerOffset < 0 )
-					m_iDirection = RI_MOVE_LEFT;
+					m_iDirection = RI_TURN_LEFT;
 				// right turn required
 				else
-					m_iDirection = RI_MOVE_RIGHT;
+					m_iDirection = RI_TURN_RIGHT;
 			}
 
 			adjust = true;
