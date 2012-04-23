@@ -273,7 +273,10 @@ void Robot::updateWE(int flag){
 		int moveY = WheelAverageY((float)(filterR), (float)(filterL), (float)(filterB)) * CM_PER_TICK;//get x contribution after filter  
 		int moveX = WheelAverageX((float)(filterR), (float)(filterL)) * CM_PER_TICK;//get y contribution after filter
         
-
+		if(m_pRobotName.compare("walle")){
+			moveX = moveX * 2;
+			moveY = moveY * 2;
+		}
 		printf("---------- updateWE ---------------\n");
         //printf("r:%d(%d), l:%d(%d), b:%d, fr:%5.2f, fl:%5.2f, fb:%5.2f\n",r,(r-wheelR),l,l-wheelL,b,filterR,filterL,filterB);
         
