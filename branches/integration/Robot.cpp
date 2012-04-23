@@ -63,13 +63,13 @@ using namespace std;
 // Initializes values for Robot control
 Robot::Robot(string name,int robot_number)
 {
-		float wheel[] = {0.25,0.25,0.25,0.25};
+	float wheel[] = {0.25,0.25,0.25,0.25};
 
-		float NSArray[] = {0.226534104,0.05857213,0.063044531,
+	float NSArray[] = {0.226534104,0.05857213,0.063044531,
 			 0.066090109,0.06719469,0.066090109,
 			 0.063034531,0.05857213,0.226534104};
 
-		float thetaFilterArray[] = {0.111,0.111,0.111,0.111,0.111,0.111,0.111,0.111,0.111};
+	float thetaFilterArray[] = {0.111,0.111,0.111,0.111,0.111,0.111,0.111,0.111,0.111};
 	m_pRobotName = name;
 
     robot = new RobotInterface(name,robot_number);
@@ -128,6 +128,7 @@ Robot::~Robot()
 map_obj_t* Robot::getMap(int* score_1,int* score_2){
 	return robot->getMap(score_1,score_2);
 }
+
 int Robot::updateMap(int x, int y){ 
     return robot->updateMap(x,y);
 
@@ -387,51 +388,6 @@ void Robot::ReadData(){
     
 }
 
-void Robot::test(){
-
-	for(int i=0; i<2; i++){
-		updateNS(ACTION_TURN);
-		updateWE(ACTION_MOVE);
-		//updateKalman();
-		robot->Move(RI_MOVE_BACKWARD,5);
-	}
-
-		updateNS(ACTION_TURN);
-		updateWE(ACTION_MOVE);
-		updateKalman();
-		robot->Move(RI_MOVE_FORWARD,5);
-		updateNS(ACTION_TURN);
-		updateWE(ACTION_MOVE);
-		updateKalman();
-		robot->Move(RI_MOVE_FORWARD,5);
-		updateNS(ACTION_MOVE);
-		updateNS(ACTION_MOVE);
-
-		//TurnTo(90);
-		//TurnTo(351);
-
-		for(int j=0;j<5;j++){
-			m_camera->CamCenter();
-		}
-		
-		move(100);
-		updateNS(ACTION_TURN);
-		m_camera->CamCenter();
-		move(220);
-		updateNS(ACTION_TURN);
-		m_camera->CamCenter();
-		//TurnTo(90);
-		move(322);
-		updateNS(ACTION_TURN);
-
-		TurnTo(90);
-		m_camera->CamCenter();
-
-		updateNS(ACTION_TURN);
-		move(650);
-
-
-}
 
 void Robot::Init(){ 
     
@@ -509,35 +465,6 @@ void Robot::Init(){
     
 }
 
-void Robot::move(int nextFacing){
-	updateNS(ACTION_TURN);
-	int step;
-
-	do{
-		
-		updateNS(ACTION_MOVE);
-		updateWE(ACTION_MOVE);
-		updateKalman();
-		//printf("currWX: %4d currWY: %4d\n",currWX,currWY);
-		robot->Move(RI_MOVE_FORWARD,5);
-		
-		if(step++%20==0){
-			m_camera->CamCenter();
-			m_camera->CamCenter();
-			m_camera->CamCenter();
-			m_camera->CamCenter();
-			m_camera->CamCenter();
-		}
-		if(finalY<-nextFacing){
-			break; 
-		}
-
-		prevNSD = currNSD;
-	}
-	while(1);
-
-
-}
 
 void Robot::MoveTo(int nextFacing){
     PID *pid = new PID();   
@@ -598,18 +525,19 @@ void Robot::MoveTo(int nextFacing){
 	thetaFilter->reset();
     
 	m_camera->CamCenter();
-	int itr=0;
+	int itr = 0;
 	do{ 
 		itr++;
-		if ( itr >= 200 )
+		if ( itr >= 100 ){
 			break;
+		}
 
         /*********************************
           update X, Y Theta
          *********************************/
         updateNS(ACTION_MOVE);
         updateWE(ACTION_MOVE);
-        updateKalman();
+        //updateKalman();
 
         vel[0] = move_speed * -sin(currTheta) * CM_PER_TICK;
         vel[1] = move_speed * cos(currTheta) * CM_PER_TICK;

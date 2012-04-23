@@ -75,8 +75,6 @@ public:
     void TurnTo(float target);
     void Init();
     void ReadData();
-	void test();
-	void move(int);
     map_obj_t* getMap(int* score_1,int* score_2);
     int reserveMap(int x, int y);
     int updateMap(int x, int y);
