@@ -43,7 +43,7 @@ public:
 	squares_t *				MergeSquares( squares_t *a, squares_t *b );
 	vector<squares_t *>		RemoveDuplicateSquares( vector<squares_t *> squares, unsigned int index );
 	int						DetermineFSMState( vector<squares_t *> );
-    void					DrawSquareLine( vector<squares_t *> biggest, double *slope, CvPoint *centerPoint );
+    void					DrawSquareLine( vector<squares_t *> biggest );
     void					DrawXOnSquares( vector<squares_t *> squares, CvScalar lineColor );
     void					DetermineAdjustment( vector<squares_t *> squares );
 	IplImage*				ConvertImageRGBtoHSV( const IplImage *imageRGB);

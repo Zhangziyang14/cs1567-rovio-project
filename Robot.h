@@ -61,11 +61,10 @@ protected:
 
     int roomID;
 
+	int  AMOUNT_MOVE;	// The amount we need to move in cm
+public:
 	Camera *m_camera;
 	string m_pRobotName;
-
-	int  AMOUNT_MOVE;	// The amount we need to move in cm
-
     
 public:
 	Robot(string, int);
