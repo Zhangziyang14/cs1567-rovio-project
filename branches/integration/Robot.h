@@ -62,6 +62,7 @@ protected:
     int roomID;
 
 	Camera *m_camera;
+	string m_pRobotName;
     
 public:
 	Robot(string, int);

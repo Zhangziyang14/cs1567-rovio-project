@@ -69,6 +69,7 @@ Robot::Robot(string name,int robot_number)
 			 0.063034531,0.05857213,0.226534104};
 
 		float thetaFilterArray[] = {0.111,0.111,0.111,0.111,0.111,0.111,0.111,0.111,0.111};
+	m_pRobotName = name;
 
     robot = new RobotInterface(name,robot_number);
     kf = new Kalman();
@@ -500,7 +501,7 @@ void Robot::Init(){
      Initialize     Camera
      ************************/
 	m_camera = new Camera();
-	m_camera->InitCamera( robot );
+	m_camera->InitCamera( robot, m_pRobotName );
     
 }
 

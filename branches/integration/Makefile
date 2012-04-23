@@ -7,6 +7,9 @@ DEPS=${PROGRAM}.o Fir.o FirTheta.o PID.o Kalman.o Robot.o Camera.o Game.o
 
 all: ${PROGRAM}
 
+debug: CFLAGS +=-DDEBUG -ggdb -Wall -g
+debug: ${PROGRAM}
+
 ${PROGRAM}: ${DEPS}
 	g++ ${CFLAGS} -o ${PROGRAM} ${DEPS} ${CPP_LIB_FLAGS} ${LIB_LINK}
 
@@ -15,4 +18,7 @@ ${PROGRAM}: ${DEPS}
 
 clean:
 	rm -rf *.o
+	rm -rf *.jpg
+	rm -rf *.txt
 	rm -rf ${PROGRAM}
+	rm -rf core.*

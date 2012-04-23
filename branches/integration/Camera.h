@@ -10,36 +10,44 @@
 
 #include "robot_if++.h"
 #include "robot_color.h"
+#include <vector>
+
+using namespace std;
 
 class Camera
 {
 protected:
 	RobotInterface *m_robot;
+	string m_pRobotName;
 
 	IplImage *m_pImage;
     IplImage *m_pHsv;
     IplImage *m_pThreshold;
 
-    CvPoint m_CvPpath_center;
-
     int m_iDirection;
     bool m_bAdjust;
     double m_dSlope;
     CvPoint m_CvPCenterPoint;
-    squares_t *m_pBiggest;
+    vector<squares_t *> m_vBiggest;
+	vector<squares_t *> m_vSquares;
 
 public:
 	Camera();
 	~Camera();
 
-	void InitCamera( RobotInterface *robot );
-    void CamCenter();
-    squares_t *FindSquares( int color );
-    squares_t *GetBiggestPair( squares_t *squares );
-    squares_t *GetBiggestSquares( squares_t *squares );
-    void DrawSquareLine( squares_t *squares, double *slope, CvPoint *centerPoint );
-    void DrawOnSquares( squares_t *squares, CvScalar lineColor );
-    bool DetermineAdjustment( squares_t *squares );
+	void					InitCamera( RobotInterface *robot, string robotName );
+    void					CamCenter();
+    vector<squares_t *>		GetSortedSquares( int *fsmCode );
+	void					MergeSortSquares( squares_t **unsorted_squares );
+	void					SplitSquares(squares_t *source, squares_t **frontRef, squares_t **backRef);
+	squares_t *				MergeSquares( squares_t *a, squares_t *b );
+	vector<squares_t *>		RemoveDuplicateSquares( vector<squares_t *> squares, unsigned int index );
+	int						DetermineFSMState( vector<squares_t *> );
+    void					DrawSquareLine( vector<squares_t *> biggest, double *slope, CvPoint *centerPoint );
+    void					DrawXOnSquares( vector<squares_t *> squares, CvScalar lineColor );
+    void					DetermineAdjustment( vector<squares_t *> squares );
+	IplImage*				ConvertImageRGBtoHSV( const IplImage *imageRGB);
+	squares_t *				FindSquares( IplImage* img, int threshold);
 };
 
 #endif
