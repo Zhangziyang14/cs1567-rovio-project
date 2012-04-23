@@ -121,7 +121,7 @@ void Camera::CamCenter()
 #endif
 				m_vBiggest.push_back(m_vSquares[0]);
 				m_vBiggest.push_back(m_vSquares[1]);
-				DrawSquareLine( m_vBiggest, &m_dSlope, &m_CvPCenterPoint );
+				DrawSquareLine( m_vBiggest );
 				break;
 			case FSM_NO_PAIR:
 #ifdef DEBUG
@@ -129,7 +129,7 @@ void Camera::CamCenter()
 #endif
 				m_vBiggest.push_back(m_vSquares[0]);
 				m_vBiggest.push_back(m_vSquares[1]);
-				DrawSquareLine( m_vBiggest, &m_dSlope, &m_CvPCenterPoint );
+				DrawSquareLine( m_vBiggest );
 				break;
 			default:
 				cout << "FSM error. Exiting" << endl;
@@ -164,8 +164,8 @@ void Camera::CamCenter()
 		// write image to file when exiting loop
 		else
 		{
-			cout << "Exiting loop, saving image and data" << endl;
 #ifdef DEBUG
+			cout << "Exiting loop, saving image and data" << endl;
 			cvSaveImage("m_pImage.jpg", m_pImage);
 			cvSaveImage("m_pThreshold.jpg", m_pThreshold); 
 
@@ -215,13 +215,13 @@ vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
     // filter and combine for threshold image
 	if ( m_pRobotName.compare( "bender" ) == 0 )
 	{
-		cvInRangeS(m_pHsv, cvScalar(230, 100, 125), cvScalar(256, 200, 256), pink1);
-		cvInRangeS(m_pHsv, cvScalar(0, 100, 125), cvScalar(22, 200, 256), pink2);
+		cvInRangeS(m_pHsv, cvScalar(230, 100, 100), cvScalar(256, 200, 256), pink1);
+		cvInRangeS(m_pHsv, cvScalar(0, 100, 100), cvScalar(22, 200, 256), pink2);
 	}
 	else if ( m_pRobotName.compare( "rosie" ) == 0 )
 	{
-		cvInRangeS(m_pHsv, cvScalar(230, 100, 125), cvScalar(256, 200, 256), pink1);
-		cvInRangeS(m_pHsv, cvScalar(0, 100, 125), cvScalar(22, 200, 256), pink2);
+		cvInRangeS(m_pHsv, cvScalar(230, 100, 100), cvScalar(256, 200, 256), pink1);
+		cvInRangeS(m_pHsv, cvScalar(0, 100, 100), cvScalar(22, 200, 256), pink2);
 	}
 	else
 	{
@@ -258,7 +258,7 @@ vector<squares_t *> Camera::GetSortedSquares( int *fsmCode )
 	cvSmooth(pinkSum, pinkSumSmooth, CV_MEDIAN, 7, 7);
 	cvSplit(m_pHsv, hue, sat, val, NULL);
 	
-	cvInRangeS(val, cvScalar(150), cvScalar(256), val1);
+	cvInRangeS(val, cvScalar(100), cvScalar(256), val1);
 	//cvInRangeS(hue, cvScalar(0), cvScalar(22), hue2);
 	//cvOr(hue1, hue2, hue3);		
 	
@@ -466,7 +466,7 @@ int Camera::DetermineFSMState( vector<squares_t *> squares )
  * 
  * Returns slope and centerPoint output params
  */
-void Camera::DrawSquareLine( vector<squares_t *> biggest, double *slope, CvPoint *centerPoint )
+void Camera::DrawSquareLine( vector<squares_t *> biggest )
 {
     CvPoint pt1, pt2;
 
@@ -510,9 +510,8 @@ void Camera::DrawSquareLine( vector<squares_t *> biggest, double *slope, CvPoint
 
     cvLine( m_pImage, pt1, pt2, CV_RGB(0, 0, 255), 3 );
 
-    *slope = -((double)pt2.y - (double)pt1.y) / ((double)pt2.x - (double)pt1.x);
-
-    *centerPoint = cvPoint(xCenter, yCenter);
+    m_dSlope = -((double)pt2.y - (double)pt1.y) / ((double)pt2.x - (double)pt1.x);
+    m_CvPCenterPoint = cvPoint(xCenter, yCenter);
 }
 
 void Camera::DrawXOnSquares( vector<squares_t *> squares, CvScalar lineColor )
@@ -567,7 +566,7 @@ void Camera::DetermineAdjustment( vector<squares_t *> squares )
         
 		// adjustment required if m_dSlope is outside range or centerPoint is too far off center
 		bool isSlopeOutsideRange = m_dSlope >= SLOPE_TOLERANCE || m_dSlope <= -SLOPE_TOLERANCE;
-		bool centerOffset = m_CvPCenterPoint.x - 320;
+		int centerOffset = m_CvPCenterPoint.x - 320;
 		if ( isSlopeOutsideRange == true || abs(centerOffset) > OFFSET_TOLERANCE )
 		{
 			if ( isSlopeOutsideRange == true )
