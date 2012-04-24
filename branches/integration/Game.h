@@ -1,7 +1,12 @@
-
-
 #ifndef _GAME_H_
 #define _GAME_H_
+
+/** * * * * * * * * * * * * * * * * * * * * *
+* Game.h                                    *
+* Created: 4/19/2012						*
+* Authors: CJ McAllister, Yuxin Liu         *
+*											*
+* * * * * * * * * * * * * * * * * * * * * * */
 
 #include "robot_if++.h"
 #include <iostream>
