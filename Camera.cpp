@@ -464,7 +464,7 @@ int Camera::DetermineFSMState( vector<squares_t *> squares )
 /**
  * Draws a line between the 2 biggest squares
  * 
- * Returns slope and centerPoint output params
+ * Sets slope and centerpoint member vars
  */
 void Camera::DrawSquareLine( vector<squares_t *> biggest )
 {
@@ -743,6 +743,9 @@ IplImage* Camera::ConvertImageRGBtoHSV(const IplImage *imageRGB)
 	return imageHSV;
 }
 
+/**
+ * Customized robot->findSquares
+ */
 squares_t *Camera::FindSquares(IplImage* img, int threshold)
 {
 	CvSeq* contours;

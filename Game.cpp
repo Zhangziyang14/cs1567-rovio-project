@@ -1,3 +1,10 @@
+/** * * * * * * * * * * * * * * * * * * * * *
+* Game.cpp                                  *
+* Created: 4/19/2012						*
+* Authors: CJ McAllister, Yuxin Liu         *
+*											*
+* * * * * * * * * * * * * * * * * * * * * * */
+
 #include "Game.h"
 
 
